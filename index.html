@@ -327,9 +327,12 @@
 // CONFIG — remplace par tes vraies valeurs
 // ============================================================
 const CONFIG = {
-  CLIENT_ID: '798980765725-mah2f7vh8bgohaeesbq7mlauhr9l3tba.apps.googleusercontent.com',
-  DRIVE_FOLDER_ID: '171pYo5m2xodVxGZxR_a88YU0LmK726vz',
-  SCOPES: 'https://www.googleapis.com/auth/drive.file'
+  CLIENT_ID: 'REMPLACE_PAR_TON_CLIENT_ID.apps.googleusercontent.com',
+  // Ton repo GitHub au format "utilisateur/repo"
+  GITHUB_REPO: 'paulponygit/Audit_V7',
+  // Un Personal Access Token GitHub avec scope "repo" (voir README)
+  GITHUB_TOKEN: 'REMPLACE_PAR_TON_GITHUB_TOKEN',
+  SCOPES: 'openid email profile'
 };
 
 // ============================================================
@@ -386,36 +389,23 @@ function initAuth() {
     client_id: CONFIG.CLIENT_ID,
     callback: handleCredential
   });
-  tokenClient = google.accounts.oauth2.initTokenClient({
-    client_id: CONFIG.CLIENT_ID,
-    scope: CONFIG.SCOPES,
-    callback: handleToken
-  });
 }
 function handleCredential(response) {
   const payload = JSON.parse(atob(response.credential.split('.')[1]));
   state.user = { name: payload.name, email: payload.email };
   dbPut('settings', state.user, 'user');
-  tokenClient.requestAccessToken();
-}
-function handleToken(response) {
-  if (response.error) { showToast('Erreur auth: ' + response.error); return; }
-  state.accessToken = response.access_token;
-  dbPut('settings', response.access_token, 'accessToken');
   showHome();
+  loadGrillesFromGithub();
 }
 document.getElementById('btn-signin').onclick = () => {
   google.accounts.id.prompt((notification) => {
     if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
-      tokenClient.requestAccessToken({prompt: 'consent'});
+      google.accounts.id.renderButton(
+        document.getElementById('btn-signin'),
+        { theme: 'outline', size: 'large' }
+      );
     }
   });
-};
-document.getElementById('btn-signout').onclick = () => {
-  google.accounts.oauth2.revoke(state.accessToken, () => {});
-  state.user = null; state.accessToken = null;
-  dbDelete('settings','user'); dbDelete('settings','accessToken');
-  showScreen('screen-signin');
 };
 
 // ============================================================
@@ -671,101 +661,44 @@ function compressImage(dataURL, maxW) {
   });
 }
 
+document.getElementById('btn-signout').onclick = () => {
+  state.user = null; state.accessToken = null;
+  dbDelete('settings','user');
+  showScreen('screen-signin');
+};
+
 // ============================================================
-// GOOGLE DRIVE SYNC
+// GITHUB ACTIONS SYNC
 // ============================================================
+async function dispatchGithubAction(eventType, payload) {
+  const resp = await fetch(`https://api.github.com/repos/${CONFIG.GITHUB_REPO}/dispatches`, {
+    method: 'POST',
+    headers: {
+      'Authorization': 'Bearer ' + CONFIG.GITHUB_TOKEN,
+      'Accept': 'application/vnd.github.v3+json',
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ event_type: eventType, client_payload: payload })
+  });
+  if (!resp.ok) throw new Error('GitHub dispatch failed: ' + resp.status);
+}
 async function saveAndSync() {
   const audit = state.audits.find(a=>a.id===state.currentAuditId);
   if (!audit) return;
   dbPut('audits', audit);
-  if (!state.accessToken) { updateSyncIndicator(false); return; }
-  updateSyncIndicator(null); // pending
+  updateSyncIndicator(null);
   try {
-    await uploadAuditToDrive(audit);
+    const grille = state.grilles.find(g=>g.id===audit.grilleId);
+    await dispatchGithubAction('sync-audit', { audit, grille: grille || null });
     audit.synced = true;
     dbPut('audits', audit);
     updateSyncIndicator(true);
+    showToast('Synchronisé avec Drive ✓');
   } catch(e) {
     console.error('Sync error', e);
     updateSyncIndicator(false);
-    showToast('Sync Drive échouée — sauvegardé en local');
+    showToast('Sauvegardé en local — sync à venir');
   }
-}
-async function uploadAuditToDrive(audit) {
-  // Create subfolder for this audit
-  const folderName = `${audit.site} — ${new Date(audit.date).toLocaleDateString('fr-FR')}`;
-  const folderId = await getOrCreateFolder(folderName, CONFIG.DRIVE_FOLDER_ID);
-
-  // Upload photos
-  const answersForExport = {};
-  for (const [cId, ans] of Object.entries(audit.answers)) {
-    const photoNames = [];
-    if (ans.photos) {
-      for (let i=0; i<ans.photos.length; i++) {
-        const name = `${cId}_photo${i+1}.jpg`;
-        await uploadFileToDrive(ans.photos[i], name, folderId, 'image/jpeg');
-        photoNames.push(name);
-      }
-    }
-    answersForExport[cId] = { val: ans.val, comment: ans.comment||'', photos: photoNames };
-  }
-
-  // Upload JSON summary
-  const grille = state.grilles.find(g=>g.id===audit.grilleId);
-  const summary = {
-    id: audit.id, site: audit.site, grille: audit.grilleName,
-    date: new Date(audit.date).toISOString(), auditor: audit.auditor,
-    answers: answersForExport,
-    stats: buildStats(audit, grille)
-  };
-  const jsonBlob = JSON.stringify(summary, null, 2);
-  await uploadFileToDrive('data:application/json;base64,'+btoa(unescape(encodeURIComponent(jsonBlob))), 'rapport.json', folderId, 'application/json');
-}
-function buildStats(audit, grille) {
-  if (!grille) return {};
-  let ok=0,nok=0,na=0,total=0;
-  grille.sections.forEach(s=>s.criteria.forEach(c=>{
-    total++;
-    const a=audit.answers[c.id];
-    if(a?.val==='ok')ok++;
-    else if(a?.val==='nok')nok++;
-    else if(a?.val==='na')na++;
-  }));
-  return {total,ok,nok,na,unanswered:total-ok-nok-na,conformity:total?Math.round(ok/(ok+nok||1)*100):0};
-}
-async function getOrCreateFolder(name, parentId) {
-  // Search
-  const q = `name='${name}' and mimeType='application/vnd.google-apps.folder' and '${parentId}' in parents and trashed=false`;
-  const res = await driveRequest(`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id)`);
-  if (res.files && res.files.length) return res.files[0].id;
-  // Create
-  const created = await driveRequest('https://www.googleapis.com/drive/v3/files', 'POST', {
-    name, mimeType: 'application/vnd.google-apps.folder', parents: [parentId]
-  });
-  return created.id;
-}
-async function uploadFileToDrive(dataURL, name, parentId, mimeType) {
-  const base64 = dataURL.split(',')[1];
-  const binary = atob(base64);
-  const bytes = new Uint8Array(binary.length);
-  for (let i=0;i<binary.length;i++) bytes[i]=binary.charCodeAt(i);
-  const boundary = 'audit_boundary';
-  const metaPart = JSON.stringify({name, parents:[parentId]});
-  const body = `--${boundary}\r\nContent-Type: application/json\r\n\r\n${metaPart}\r\n--${boundary}\r\nContent-Type: ${mimeType}\r\nContent-Transfer-Encoding: base64\r\n\r\n${base64}\r\n--${boundary}--`;
-  const resp = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
-    method: 'POST',
-    headers: { 'Authorization': 'Bearer '+state.accessToken, 'Content-Type': `multipart/related; boundary=${boundary}` },
-    body
-  });
-  if (!resp.ok) throw new Error('Upload failed: '+resp.status);
-  return resp.json();
-}
-async function driveRequest(url, method='GET', body=null) {
-  const opts = { method, headers: { 'Authorization':'Bearer '+state.accessToken, 'Content-Type':'application/json' } };
-  if (body) opts.body = JSON.stringify(body);
-  const r = await fetch(url, opts);
-  if (!r.ok) throw new Error('Drive API '+r.status);
-  return r.json();
 }
 function updateSyncIndicator(status) {
   const dot = document.getElementById('sync-dot');
@@ -882,40 +815,15 @@ document.getElementById('btn-save-grille').onclick = saveGrille;
 document.getElementById('btn-save-grille-bottom').onclick = saveGrille;
 
 async function syncGrillesToDrive() {
-  if (!state.accessToken) return;
   try {
-    const data = JSON.stringify(state.grilles, null, 2);
-    const dataURL = 'data:application/json;base64,'+btoa(unescape(encodeURIComponent(data)));
-    // Search for existing file
-    const q = `name='grilles.json' and '${CONFIG.DRIVE_FOLDER_ID}' in parents and trashed=false`;
-    const res = await driveRequest(`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id)`);
-    if (res.files && res.files.length) {
-      // Update
-      const base64 = btoa(unescape(encodeURIComponent(data)));
-      await fetch(`https://www.googleapis.com/upload/drive/v3/files/${res.files[0].id}?uploadType=media`, {
-        method: 'PATCH',
-        headers: { 'Authorization':'Bearer '+state.accessToken, 'Content-Type':'application/json' },
-        body: data
-      });
-    } else {
-      await uploadFileToDrive(dataURL, 'grilles.json', CONFIG.DRIVE_FOLDER_ID, 'application/json');
-    }
+    await dispatchGithubAction('sync-grilles', { grilles: state.grilles });
   } catch(e) { console.error('Grilles sync error', e); }
 }
-async function loadGrillesFromDrive() {
-  if (!state.accessToken) return false;
-  try {
-    const q = `name='grilles.json' and '${CONFIG.DRIVE_FOLDER_ID}' in parents and trashed=false`;
-    const res = await driveRequest(`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id)`);
-    if (!res.files || !res.files.length) return false;
-    const file = await fetch(`https://www.googleapis.com/drive/v3/files/${res.files[0].id}?alt=media`, {
-      headers: { 'Authorization':'Bearer '+state.accessToken }
-    });
-    const grilles = await file.json();
-    state.grilles = grilles;
-    for (const g of grilles) await dbPut('grilles', g);
-    return true;
-  } catch(e) { console.error('Load grilles error', e); return false; }
+async function loadGrillesFromGithub() {
+  // Grilles are stored locally — Drive is write-only from the app
+  // Grilles sync happens via GitHub Actions on save
+  // On first load, just use local grilles
+  renderGrillesList();
 }
 
 // ============================================================
@@ -951,14 +859,13 @@ async function init() {
   await openDB();
 
   // Load local data
-  const [localAudits, localGrilles, savedUser, savedToken] = await Promise.all([
+  const [localAudits, localGrilles, savedUser] = await Promise.all([
     dbGetAll('audits'), dbGetAll('grilles'),
-    dbGet('settings','user'), dbGet('settings','accessToken')
+    dbGet('settings','user')
   ]);
   state.audits = localAudits || [];
   state.grilles = localGrilles || [];
   if (savedUser) state.user = savedUser;
-  if (savedToken) state.accessToken = savedToken;
 
   // Seed default grille if none
   if (!state.grilles.length) {
@@ -995,13 +902,7 @@ async function init() {
 
   document.getElementById('loading').style.display = 'none';
 
-  if (state.user && state.accessToken) {
-    // Try to load fresh grilles from Drive
-    loadGrillesFromDrive().then(loaded => {
-      if (loaded) renderGrillesList();
-    });
-    showHome();
-  } else if (state.user) {
+  if (state.user) {
     showHome();
   } else {
     showScreen('screen-signin');
