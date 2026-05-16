@@ -1,0 +1,1019 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <title>Audit Tool</title>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#0f0f0f">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-title" content="Audit">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0f0f0f;
+      --bg2: #1a1a1a;
+      --bg3: #242424;
+      --border: rgba(255,255,255,0.08);
+      --border2: rgba(255,255,255,0.14);
+      --text: #f0f0f0;
+      --text2: #888;
+      --text3: #555;
+      --ok: #1a9e5c;
+      --ok-bg: rgba(26,158,92,0.12);
+      --nok: #d94f4f;
+      --nok-bg: rgba(217,79,79,0.12);
+      --na: #555;
+      --na-bg: rgba(255,255,255,0.06);
+      --accent: #e8e0d0;
+      --accent2: #c8b89a;
+      --r: 10px;
+      --r2: 14px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+    html, body { height: 100%; background: var(--bg); color: var(--text); font-family: 'DM Sans', sans-serif; font-size: 15px; overscroll-behavior: none; }
+    #app { height: 100%; display: flex; flex-direction: column; max-width: 480px; margin: 0 auto; position: relative; overflow: hidden; }
+
+    /* SCREENS */
+    .screen { position: absolute; inset: 0; display: flex; flex-direction: column; background: var(--bg); transform: translateX(100%); transition: transform 0.28s cubic-bezier(0.4,0,0.2,1); overflow-y: auto; overflow-x: hidden; }
+    .screen.active { transform: translateX(0); }
+    .screen.prev { transform: translateX(-30%); }
+
+    /* TOPBAR */
+    .topbar { display: flex; align-items: center; gap: 10px; padding: 16px 16px 12px; position: sticky; top: 0; z-index: 10; background: var(--bg); border-bottom: 0.5px solid var(--border); flex-shrink: 0; }
+    .topbar-back { font-size: 13px; color: var(--accent2); cursor: pointer; white-space: nowrap; padding: 4px 0; }
+    .topbar-title { font-size: 14px; font-weight: 500; color: var(--text); flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .topbar-action { font-size: 13px; color: var(--accent2); cursor: pointer; white-space: nowrap; }
+
+    /* HOME */
+    .home-hero { padding: 28px 20px 20px; }
+    .home-hero h1 { font-size: 26px; font-weight: 300; letter-spacing: -0.5px; color: var(--text); }
+    .home-hero h1 span { color: var(--accent2); }
+    .home-meta { margin-top: 6px; font-size: 13px; color: var(--text2); display: flex; align-items: center; gap: 8px; }
+    .sync-indicator { display: flex; align-items: center; gap: 5px; font-size: 12px; }
+    .sync-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ok); }
+    .sync-dot.pending { background: #e8a020; animation: pulse 1.5s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+    .user-bar { margin: 0 16px 20px; padding: 10px 14px; background: var(--bg2); border-radius: var(--r); border: 0.5px solid var(--border); display: flex; align-items: center; gap: 10px; }
+    .avatar { width: 30px; height: 30px; border-radius: 50%; background: var(--bg3); border: 0.5px solid var(--border2); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 500; color: var(--accent2); flex-shrink: 0; font-family: 'DM Mono', monospace; }
+    .user-bar-info { flex: 1; min-width: 0; }
+    .user-bar-name { font-size: 13px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .user-bar-sub { font-size: 11px; color: var(--text3); }
+    .btn-signout { font-size: 11px; color: var(--text3); cursor: pointer; padding: 4px; }
+
+    .section-label { font-size: 10px; font-weight: 500; color: var(--text3); text-transform: uppercase; letter-spacing: 0.08em; padding: 0 20px; margin-bottom: 10px; }
+
+    .audit-card { margin: 0 16px 10px; background: var(--bg2); border: 0.5px solid var(--border); border-radius: var(--r2); padding: 16px; cursor: pointer; transition: border-color 0.15s, background 0.15s; }
+    .audit-card:active { background: var(--bg3); }
+    .audit-card-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; margin-bottom: 10px; }
+    .audit-card-left { min-width: 0; }
+    .audit-card-title { font-size: 14px; font-weight: 500; color: var(--text); }
+    .audit-card-sub { font-size: 12px; color: var(--text2); margin-top: 2px; }
+    .badge { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; padding: 3px 8px; border-radius: 20px; font-weight: 500; white-space: nowrap; font-family: 'DM Mono', monospace; }
+    .badge-ok { background: var(--ok-bg); color: var(--ok); }
+    .badge-nok { background: var(--nok-bg); color: var(--nok); }
+    .badge-pending { background: rgba(232,160,32,0.12); color: #e8a020; }
+    .badge-draft { background: var(--na-bg); color: var(--text2); }
+    .progress-bar { height: 2px; background: var(--bg3); border-radius: 1px; overflow: hidden; }
+    .progress-fill { height: 100%; border-radius: 1px; background: var(--accent2); transition: width 0.3s; }
+    .progress-label { font-size: 11px; color: var(--text3); margin-top: 6px; font-family: 'DM Mono', monospace; }
+
+    .empty-state { padding: 40px 20px; text-align: center; color: var(--text3); font-size: 13px; line-height: 1.6; }
+
+    .bottom-bar { padding: 16px; display: flex; gap: 10px; border-top: 0.5px solid var(--border); background: var(--bg); flex-shrink: 0; position: sticky; bottom: 0; }
+    .btn { border-radius: var(--r); padding: 13px 16px; font-size: 14px; font-weight: 500; cursor: pointer; font-family: 'DM Sans', sans-serif; transition: opacity 0.15s, transform 0.1s; border: none; }
+    .btn:active { transform: scale(0.97); opacity: 0.85; }
+    .btn-main { background: var(--accent); color: #0f0f0f; flex: 1; }
+    .btn-ghost { background: var(--bg2); color: var(--text2); border: 0.5px solid var(--border2); }
+
+    /* NEW AUDIT MODAL */
+    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 100; display: flex; align-items: flex-end; opacity: 0; pointer-events: none; transition: opacity 0.2s; }
+    .modal-overlay.open { opacity: 1; pointer-events: all; }
+    .modal { background: var(--bg2); border-radius: 20px 20px 0 0; border: 0.5px solid var(--border2); padding: 24px 20px 40px; width: 100%; transform: translateY(100%); transition: transform 0.28s cubic-bezier(0.4,0,0.2,1); }
+    .modal-overlay.open .modal { transform: translateY(0); }
+    .modal h2 { font-size: 18px; font-weight: 400; margin-bottom: 20px; color: var(--text); }
+    .field { margin-bottom: 14px; }
+    .field label { display: block; font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 6px; }
+    .field input, .field select { width: 100%; background: var(--bg3); border: 0.5px solid var(--border2); border-radius: var(--r); padding: 12px 14px; font-size: 14px; color: var(--text); font-family: 'DM Sans', sans-serif; outline: none; }
+    .field input:focus, .field select:focus { border-color: var(--accent2); }
+    .field select option { background: var(--bg3); }
+
+    /* AUDIT FILL SCREEN */
+    .audit-header { padding: 16px 20px 14px; border-bottom: 0.5px solid var(--border); }
+    .audit-header-title { font-size: 16px; font-weight: 500; color: var(--text); }
+    .audit-header-sub { font-size: 12px; color: var(--text2); margin-top: 3px; }
+    .section-tabs { display: flex; gap: 6px; padding: 12px 16px; overflow-x: auto; flex-shrink: 0; scrollbar-width: none; border-bottom: 0.5px solid var(--border); }
+    .section-tabs::-webkit-scrollbar { display: none; }
+    .section-tab { flex-shrink: 0; padding: 6px 12px; border-radius: 20px; font-size: 12px; cursor: pointer; border: 0.5px solid var(--border2); color: var(--text2); background: transparent; white-space: nowrap; transition: all 0.15s; font-family: 'DM Sans', sans-serif; }
+    .section-tab.active { background: var(--accent); color: #0f0f0f; border-color: transparent; font-weight: 500; }
+    .section-content { flex: 1; overflow-y: auto; padding-bottom: 100px; }
+
+    .criterion-block { padding: 18px 20px; border-bottom: 0.5px solid var(--border); }
+    .criterion-num { font-size: 10px; color: var(--text3); font-family: 'DM Mono', monospace; margin-bottom: 6px; }
+    .criterion-text { font-size: 14px; color: var(--text); line-height: 1.5; margin-bottom: 14px; }
+    .answer-group { display: flex; gap: 8px; margin-bottom: 12px; }
+    .answer-btn { flex: 1; padding: 9px 4px; border-radius: var(--r); font-size: 12px; font-weight: 500; cursor: pointer; border: 0.5px solid var(--border2); background: var(--bg2); color: var(--text2); text-align: center; transition: all 0.15s; font-family: 'DM Sans', sans-serif; }
+    .answer-btn:active { transform: scale(0.96); }
+    .answer-btn.sel-ok { background: var(--ok-bg); border-color: var(--ok); color: var(--ok); }
+    .answer-btn.sel-nok { background: var(--nok-bg); border-color: var(--nok); color: var(--nok); }
+    .answer-btn.sel-na { background: var(--na-bg); border-color: var(--border2); color: var(--text2); }
+    .photo-zone { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+    .photo-thumb { width: 60px; height: 60px; border-radius: var(--r); overflow: hidden; position: relative; flex-shrink: 0; }
+    .photo-thumb img { width: 100%; height: 100%; object-fit: cover; }
+    .photo-thumb .delete-photo { position: absolute; top: 2px; right: 2px; width: 18px; height: 18px; border-radius: 50%; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 10px; color: white; }
+    .photo-add-btn { width: 60px; height: 60px; border-radius: var(--r); border: 0.5px dashed var(--border2); background: var(--bg2); display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; gap: 3px; transition: border-color 0.15s; }
+    .photo-add-btn:active { border-color: var(--accent2); }
+    .photo-add-btn svg { opacity: 0.4; }
+    .photo-add-label { font-size: 9px; color: var(--text3); }
+    .comment-field { width: 100%; background: var(--bg2); border: 0.5px solid var(--border); border-radius: var(--r); padding: 10px 12px; font-size: 13px; color: var(--text); font-family: 'DM Sans', sans-serif; resize: none; outline: none; line-height: 1.5; }
+    .comment-field:focus { border-color: var(--border2); }
+    .comment-field::placeholder { color: var(--text3); }
+
+    .audit-bottom-bar { position: sticky; bottom: 0; background: var(--bg); border-top: 0.5px solid var(--border); padding: 12px 16px; display: flex; flex-direction: column; gap: 8px; }
+    .audit-progress-row { display: flex; justify-content: space-between; align-items: center; }
+    .audit-progress-label { font-size: 12px; color: var(--text3); font-family: 'DM Mono', monospace; }
+    .audit-progress-bar { flex: 1; height: 3px; background: var(--bg3); border-radius: 2px; overflow: hidden; margin: 0 12px; }
+    .audit-progress-fill { height: 100%; background: var(--accent2); border-radius: 2px; transition: width 0.3s; }
+    .audit-actions { display: flex; gap: 8px; }
+
+    /* GRID EDITOR */
+    .grid-list { padding: 12px 0; }
+    .grid-section-block { margin: 0 16px 12px; background: var(--bg2); border: 0.5px solid var(--border); border-radius: var(--r2); overflow: hidden; }
+    .grid-section-header { padding: 12px 14px; display: flex; align-items: center; gap: 8px; cursor: pointer; }
+    .grid-section-name { font-size: 14px; font-weight: 500; color: var(--text); flex: 1; }
+    .grid-section-count { font-size: 11px; color: var(--text3); font-family: 'DM Mono', monospace; }
+    .grid-chevron { font-size: 12px; color: var(--text3); transition: transform 0.2s; }
+    .grid-chevron.open { transform: rotate(90deg); }
+    .grid-items { border-top: 0.5px solid var(--border); display: none; }
+    .grid-items.open { display: block; }
+    .grid-item-row { padding: 10px 14px; border-bottom: 0.5px solid var(--border); display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--text2); }
+    .grid-item-row:last-child { border-bottom: none; }
+    .grid-item-text { flex: 1; }
+    .grid-item-delete { width: 22px; height: 22px; border-radius: 50%; background: var(--bg3); border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 13px; color: var(--text3); flex-shrink: 0; }
+    .grid-add-item { padding: 10px 14px; border-top: 0.5px solid var(--border); display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--accent2); cursor: pointer; }
+
+    /* SYNC STATUS */
+    .sync-bar { margin: 0 16px 12px; padding: 10px 14px; border-radius: var(--r); border: 0.5px solid var(--border); background: var(--bg2); display: flex; align-items: center; gap: 10px; font-size: 12px; color: var(--text2); }
+    .sync-bar svg { flex-shrink: 0; }
+
+    /* LOADING */
+    #loading { position: fixed; inset: 0; background: var(--bg); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; z-index: 999; }
+    #loading .logo { font-size: 32px; font-weight: 300; color: var(--accent); letter-spacing: -1px; }
+    #loading .sub { font-size: 13px; color: var(--text3); }
+    .spinner { width: 24px; height: 24px; border: 1.5px solid var(--border2); border-top-color: var(--accent2); border-radius: 50%; animation: spin 0.8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* SIGN IN */
+    #screen-signin { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 24px; padding: 40px 24px; text-align: center; }
+    #screen-signin h1 { font-size: 28px; font-weight: 300; letter-spacing: -0.5px; }
+    #screen-signin h1 span { color: var(--accent2); }
+    #screen-signin p { font-size: 14px; color: var(--text2); line-height: 1.6; }
+    .btn-google { display: flex; align-items: center; gap: 10px; background: var(--bg2); border: 0.5px solid var(--border2); border-radius: var(--r); padding: 14px 24px; font-size: 14px; font-weight: 500; color: var(--text); cursor: pointer; font-family: 'DM Sans', sans-serif; transition: background 0.15s; }
+    .btn-google:hover { background: var(--bg3); }
+    .google-icon { width: 18px; height: 18px; }
+
+    /* TOAST */
+    .toast { position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%) translateY(20px); background: var(--bg3); border: 0.5px solid var(--border2); border-radius: 20px; padding: 10px 18px; font-size: 13px; color: var(--text); white-space: nowrap; z-index: 200; opacity: 0; transition: all 0.2s; pointer-events: none; }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+    /* INSTALL BANNER */
+    #install-banner { display: none; margin: 0 16px 12px; padding: 12px 14px; background: rgba(200,184,154,0.08); border: 0.5px solid rgba(200,184,154,0.2); border-radius: var(--r); font-size: 13px; color: var(--accent2); cursor: pointer; display: flex; align-items: center; gap: 10px; }
+    #install-banner.hidden { display: none !important; }
+  </style>
+</head>
+<body>
+<div id="loading">
+  <div class="logo">audit</div>
+  <div class="spinner"></div>
+  <div class="sub">Chargement…</div>
+</div>
+
+<div id="app">
+  <!-- SIGN IN -->
+  <div id="screen-signin" class="screen">
+    <div style="font-size:40px;font-weight:300;letter-spacing:-2px;color:var(--accent)">audit</div>
+    <div>
+      <h1>Bienvenue sur<br><span>Audit Tool</span></h1>
+      <p style="margin-top:10px">Connecte-toi avec ton compte<br>@getapony pour continuer.</p>
+    </div>
+    <button class="btn-google" id="btn-signin">
+      <svg class="google-icon" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615z"/><path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18z"/><path fill="#FBBC05" d="M3.964 10.706A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.706V4.962H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.038l3.007-2.332z"/><path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.962L3.964 7.294C4.672 5.163 6.656 3.58 9 3.58z"/></svg>
+      Continuer avec Google
+    </button>
+  </div>
+
+  <!-- HOME -->
+  <div id="screen-home" class="screen">
+    <div class="home-hero">
+      <h1>Audit <span>Tool</span></h1>
+      <div class="home-meta">
+        <div class="sync-indicator" id="sync-indicator">
+          <div class="sync-dot" id="sync-dot"></div>
+          <span id="sync-label">Synchronisé</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="user-bar" id="user-bar">
+      <div class="avatar" id="user-avatar">?</div>
+      <div class="user-bar-info">
+        <div class="user-bar-name" id="user-name">—</div>
+        <div class="user-bar-sub" id="user-email">—</div>
+      </div>
+      <div class="btn-signout" id="btn-signout">Déco.</div>
+    </div>
+
+    <div id="install-banner" class="hidden">
+      <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/></svg>
+      Installer l'appli pour utiliser hors-ligne
+    </div>
+
+    <div class="section-label">Mes audits</div>
+    <div id="audit-list">
+      <div class="empty-state">Aucun audit pour l'instant.<br>Crée ton premier audit !</div>
+    </div>
+
+    <div class="bottom-bar">
+      <button class="btn btn-ghost" id="btn-grilles">Grilles</button>
+      <button class="btn btn-main" id="btn-new-audit">+ Nouvel audit</button>
+    </div>
+  </div>
+
+  <!-- AUDIT FILL -->
+  <div id="screen-audit" class="screen">
+    <div class="topbar">
+      <span class="topbar-back" id="btn-back-audit">← Retour</span>
+      <span class="topbar-title" id="audit-fill-title">Audit</span>
+      <span class="topbar-action" id="btn-save-audit">Enregistrer</span>
+    </div>
+    <div class="audit-header">
+      <div class="audit-header-title" id="audit-fill-site">—</div>
+      <div class="audit-header-sub" id="audit-fill-meta">—</div>
+    </div>
+    <div class="section-tabs" id="section-tabs"></div>
+    <div class="section-content" id="section-content"></div>
+    <div class="audit-bottom-bar">
+      <div class="audit-progress-row">
+        <span class="audit-progress-label" id="audit-progress-label">0/0</span>
+        <div class="audit-progress-bar"><div class="audit-progress-fill" id="audit-progress-fill" style="width:0%"></div></div>
+        <span class="audit-progress-label" id="audit-progress-pct">0%</span>
+      </div>
+      <div class="audit-actions">
+        <button class="btn btn-ghost" id="btn-prev-section">← Section</button>
+        <button class="btn btn-main" style="flex:1" id="btn-next-section">Section suivante →</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- GRID EDITOR -->
+  <div id="screen-grilles" class="screen">
+    <div class="topbar">
+      <span class="topbar-back" id="btn-back-grilles">← Retour</span>
+      <span class="topbar-title">Grilles d'audit</span>
+      <span class="topbar-action" id="btn-new-grille">+ Grille</span>
+    </div>
+    <div id="grilles-list" style="padding: 12px 0;"></div>
+  </div>
+
+  <!-- GRILLE DETAIL -->
+  <div id="screen-grille-detail" class="screen">
+    <div class="topbar">
+      <span class="topbar-back" id="btn-back-grille-detail">← Retour</span>
+      <span class="topbar-title" id="grille-detail-title">Grille</span>
+      <span class="topbar-action" id="btn-save-grille">Enregistrer</span>
+    </div>
+    <div id="grille-sections-list" class="grid-list"></div>
+    <div class="bottom-bar">
+      <button class="btn btn-ghost" id="btn-add-section">+ Section</button>
+      <button class="btn btn-main" id="btn-save-grille-bottom">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- NEW AUDIT MODAL -->
+<div class="modal-overlay" id="modal-new-audit">
+  <div class="modal">
+    <h2>Nouvel audit</h2>
+    <div class="field">
+      <label>Site / Lieu</label>
+      <input type="text" id="new-audit-site" placeholder="ex: Lyon-Nord, Entrepôt B…">
+    </div>
+    <div class="field">
+      <label>Grille d'audit</label>
+      <select id="new-audit-grille"></select>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:20px;">
+      <button class="btn btn-ghost" id="btn-cancel-audit">Annuler</button>
+      <button class="btn btn-main" style="flex:1" id="btn-create-audit">Créer l'audit</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<!-- Hidden file input -->
+<input type="file" id="photo-input" accept="image/*" capture="environment" style="display:none">
+
+<!-- Google Identity Services -->
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+
+<script>
+// ============================================================
+// CONFIG — remplace par tes vraies valeurs
+// ============================================================
+const CONFIG = {
+  CLIENT_ID: 'REMPLACE_PAR_TON_CLIENT_ID.apps.googleusercontent.com',
+  DRIVE_FOLDER_ID: '171pYo5m2xodVxGZxR_a88YU0LmK726vz',
+  SCOPES: 'https://www.googleapis.com/auth/drive.file'
+};
+
+// ============================================================
+// STATE
+// ============================================================
+let state = {
+  user: null,
+  accessToken: null,
+  audits: [],       // [{id, site, grilleId, grilleName, date, answers:{criterionId:{val,comment,photos:[dataURL]}}, synced}]
+  grilles: [],      // [{id, name, sections:[{id,name,criteria:[{id,text}]}]}]
+  currentAuditId: null,
+  currentSectionIdx: 0,
+  currentGrilleId: null,
+  photoTargetId: null,
+  deferredInstall: null
+};
+
+// ============================================================
+// DB (IndexedDB)
+// ============================================================
+let db;
+function openDB() {
+  return new Promise((res, rej) => {
+    const req = indexedDB.open('audit-tool', 2);
+    req.onupgradeneeded = e => {
+      const d = e.target.result;
+      if (!d.objectStoreNames.contains('audits')) d.createObjectStore('audits', {keyPath:'id'});
+      if (!d.objectStoreNames.contains('grilles')) d.createObjectStore('grilles', {keyPath:'id'});
+      if (!d.objectStoreNames.contains('settings')) d.createObjectStore('settings');
+    };
+    req.onsuccess = e => { db = e.target.result; res(db); };
+    req.onerror = rej;
+  });
+}
+function dbGet(store, key) {
+  return new Promise((res,rej) => { const t=db.transaction(store,'readonly'); const r=t.objectStore(store).get(key); r.onsuccess=()=>res(r.result); r.onerror=rej; });
+}
+function dbGetAll(store) {
+  return new Promise((res,rej) => { const t=db.transaction(store,'readonly'); const r=t.objectStore(store).getAll(); r.onsuccess=()=>res(r.result); r.onerror=rej; });
+}
+function dbPut(store, val, key) {
+  return new Promise((res,rej) => { const t=db.transaction(store,'readwrite'); const r=key!==undefined?t.objectStore(store).put(val,key):t.objectStore(store).put(val); r.onsuccess=()=>res(r.result); r.onerror=rej; });
+}
+function dbDelete(store, key) {
+  return new Promise((res,rej) => { const t=db.transaction(store,'readwrite'); const r=t.objectStore(store).delete(key); r.onsuccess=()=>res(); r.onerror=rej; });
+}
+
+// ============================================================
+// AUTH
+// ============================================================
+let tokenClient;
+function initAuth() {
+  google.accounts.id.initialize({
+    client_id: CONFIG.CLIENT_ID,
+    callback: handleCredential
+  });
+  tokenClient = google.accounts.oauth2.initTokenClient({
+    client_id: CONFIG.CLIENT_ID,
+    scope: CONFIG.SCOPES,
+    callback: handleToken
+  });
+}
+function handleCredential(response) {
+  const payload = JSON.parse(atob(response.credential.split('.')[1]));
+  state.user = { name: payload.name, email: payload.email };
+  dbPut('settings', state.user, 'user');
+  tokenClient.requestAccessToken();
+}
+function handleToken(response) {
+  if (response.error) { showToast('Erreur auth: ' + response.error); return; }
+  state.accessToken = response.access_token;
+  dbPut('settings', response.access_token, 'accessToken');
+  showHome();
+}
+document.getElementById('btn-signin').onclick = () => {
+  google.accounts.id.prompt((notification) => {
+    if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
+      tokenClient.requestAccessToken({prompt: 'consent'});
+    }
+  });
+};
+document.getElementById('btn-signout').onclick = () => {
+  google.accounts.oauth2.revoke(state.accessToken, () => {});
+  state.user = null; state.accessToken = null;
+  dbDelete('settings','user'); dbDelete('settings','accessToken');
+  showScreen('screen-signin');
+};
+
+// ============================================================
+// SCREENS
+// ============================================================
+function showScreen(id) {
+  const screens = document.querySelectorAll('.screen');
+  screens.forEach(s => {
+    if (s.id === id) s.classList.add('active');
+    else s.classList.remove('active');
+  });
+}
+function showHome() {
+  updateUserBar();
+  renderAuditList();
+  showScreen('screen-home');
+}
+
+// ============================================================
+// HOME
+// ============================================================
+function updateUserBar() {
+  if (!state.user) return;
+  const initials = state.user.name.split(' ').map(n=>n[0]).join('').substring(0,2).toUpperCase();
+  document.getElementById('user-avatar').textContent = initials;
+  document.getElementById('user-name').textContent = state.user.name;
+  document.getElementById('user-email').textContent = state.user.email;
+}
+function renderAuditList() {
+  const list = document.getElementById('audit-list');
+  if (!state.audits.length) {
+    list.innerHTML = '<div class="empty-state">Aucun audit pour l\'instant.<br>Crée ton premier audit !</div>';
+    return;
+  }
+  const sorted = [...state.audits].sort((a,b) => b.date - a.date);
+  list.innerHTML = sorted.map(audit => {
+    const grille = state.grilles.find(g=>g.id===audit.grilleId);
+    const total = grille ? grille.sections.reduce((s,sec)=>s+sec.criteria.length,0) : 0;
+    const answered = Object.values(audit.answers||{}).filter(a=>a.val).length;
+    const pct = total ? Math.round(answered/total*100) : 0;
+    const nokCount = Object.values(audit.answers||{}).filter(a=>a.val==='nok').length;
+    const dateStr = new Date(audit.date).toLocaleDateString('fr-FR',{day:'numeric',month:'short'});
+    let badgeHTML = '';
+    if (pct===100) badgeHTML = `<span class="badge badge-ok">✓ Terminé</span>`;
+    else if (!audit.synced) badgeHTML = `<span class="badge badge-pending">Sync en attente</span>`;
+    else if (nokCount>0) badgeHTML = `<span class="badge badge-nok">${nokCount} NOK</span>`;
+    else badgeHTML = `<span class="badge badge-draft">En cours</span>`;
+    return `<div class="audit-card" onclick="openAudit('${audit.id}')">
+      <div class="audit-card-top">
+        <div class="audit-card-left">
+          <div class="audit-card-title">${audit.site}</div>
+          <div class="audit-card-sub">${audit.grilleName} · ${dateStr}</div>
+        </div>
+        ${badgeHTML}
+      </div>
+      <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
+      <div class="progress-label">${answered}/${total} critères · ${pct}%</div>
+    </div>`;
+  }).join('');
+}
+
+// ============================================================
+// NEW AUDIT MODAL
+// ============================================================
+document.getElementById('btn-new-audit').onclick = () => {
+  const sel = document.getElementById('new-audit-grille');
+  sel.innerHTML = state.grilles.map(g=>`<option value="${g.id}">${g.name}</option>`).join('');
+  document.getElementById('new-audit-site').value = '';
+  document.getElementById('modal-new-audit').classList.add('open');
+};
+document.getElementById('btn-cancel-audit').onclick = () => {
+  document.getElementById('modal-new-audit').classList.remove('open');
+};
+document.getElementById('modal-new-audit').addEventListener('click', e => {
+  if (e.target === document.getElementById('modal-new-audit'))
+    document.getElementById('modal-new-audit').classList.remove('open');
+});
+document.getElementById('btn-create-audit').onclick = () => {
+  const site = document.getElementById('new-audit-site').value.trim();
+  const grilleId = document.getElementById('new-audit-grille').value;
+  if (!site) { showToast('Indique le nom du site'); return; }
+  const grille = state.grilles.find(g=>g.id===grilleId);
+  if (!grille) { showToast('Sélectionne une grille'); return; }
+  const audit = {
+    id: 'a_' + Date.now(),
+    site, grilleId, grilleName: grille.name,
+    date: Date.now(), answers: {}, synced: false,
+    auditor: state.user?.name || 'Inconnu'
+  };
+  state.audits.push(audit);
+  dbPut('audits', audit);
+  document.getElementById('modal-new-audit').classList.remove('open');
+  openAudit(audit.id);
+};
+
+// ============================================================
+// AUDIT FILL
+// ============================================================
+function openAudit(id) {
+  state.currentAuditId = id;
+  state.currentSectionIdx = 0;
+  const audit = state.audits.find(a=>a.id===id);
+  const grille = state.grilles.find(g=>g.id===audit.grilleId);
+  document.getElementById('audit-fill-title').textContent = audit.grilleName;
+  document.getElementById('audit-fill-site').textContent = audit.site;
+  document.getElementById('audit-fill-meta').textContent = new Date(audit.date).toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'}) + ' · ' + audit.auditor;
+  renderSectionTabs(grille);
+  renderSectionContent(grille, 0);
+  showScreen('screen-audit');
+}
+function renderSectionTabs(grille) {
+  const tabs = document.getElementById('section-tabs');
+  tabs.innerHTML = grille.sections.map((s,i) =>
+    `<button class="section-tab ${i===state.currentSectionIdx?'active':''}" onclick="switchSection(${i})">${s.name}</button>`
+  ).join('');
+}
+function switchSection(idx) {
+  const audit = state.audits.find(a=>a.id===state.currentAuditId);
+  const grille = state.grilles.find(g=>g.id===audit.grilleId);
+  state.currentSectionIdx = idx;
+  renderSectionTabs(grille);
+  renderSectionContent(grille, idx);
+}
+function renderSectionContent(grille, sectionIdx) {
+  const audit = state.audits.find(a=>a.id===state.currentAuditId);
+  const section = grille.sections[sectionIdx];
+  const content = document.getElementById('section-content');
+  content.innerHTML = section.criteria.map((c, i) => {
+    const ans = audit.answers[c.id] || {};
+    const photos = ans.photos || [];
+    return `<div class="criterion-block" id="crit-${c.id}">
+      <div class="criterion-num">${sectionIdx+1}.${i+1}</div>
+      <div class="criterion-text">${c.text}</div>
+      <div class="answer-group">
+        <button class="answer-btn ${ans.val==='ok'?'sel-ok':''}" onclick="setAnswer('${c.id}','ok')">✓ OK</button>
+        <button class="answer-btn ${ans.val==='nok'?'sel-nok':''}" onclick="setAnswer('${c.id}','nok')">✗ NOK</button>
+        <button class="answer-btn ${ans.val==='na'?'sel-na':''}" onclick="setAnswer('${c.id}','na')">N/A</button>
+      </div>
+      <div class="photo-zone" id="photos-${c.id}">
+        ${photos.map((p,pi)=>`<div class="photo-thumb"><img src="${p}"><div class="delete-photo" onclick="deletePhoto('${c.id}',${pi})">×</div></div>`).join('')}
+        <div class="photo-add-btn" onclick="triggerPhoto('${c.id}')">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z"/><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0zM18.75 10.5h.008v.008h-.008V10.5z"/></svg>
+          <span class="photo-add-label">Photo</span>
+        </div>
+      </div>
+      <textarea class="comment-field" rows="2" placeholder="Commentaire…" onchange="setComment('${c.id}',this.value)">${ans.comment||''}</textarea>
+    </div>`;
+  }).join('');
+  updateProgress(grille);
+  document.getElementById('btn-prev-section').style.opacity = sectionIdx===0?'0.3':'1';
+  document.getElementById('btn-next-section').textContent = sectionIdx===grille.sections.length-1 ? 'Terminer ✓' : 'Section suivante →';
+}
+function setAnswer(criterionId, val) {
+  const audit = state.audits.find(a=>a.id===state.currentAuditId);
+  if (!audit.answers[criterionId]) audit.answers[criterionId] = {};
+  audit.answers[criterionId].val = val;
+  audit.synced = false;
+  dbPut('audits', audit);
+  const block = document.getElementById('crit-'+criterionId);
+  block.querySelectorAll('.answer-btn').forEach(b => b.classList.remove('sel-ok','sel-nok','sel-na'));
+  const map = {ok:'sel-ok',nok:'sel-nok',na:'sel-na'};
+  block.querySelectorAll('.answer-btn').forEach(b => {
+    if ((val==='ok'&&b.textContent.includes('OK')&&!b.textContent.includes('NOK')) ||
+        (val==='nok'&&b.textContent.includes('NOK')) ||
+        (val==='na'&&b.textContent.includes('N/A'))) b.classList.add(map[val]);
+  });
+  const grille = state.grilles.find(g=>g.id===audit.grilleId);
+  updateProgress(grille);
+}
+function setComment(criterionId, val) {
+  const audit = state.audits.find(a=>a.id===state.currentAuditId);
+  if (!audit.answers[criterionId]) audit.answers[criterionId] = {};
+  audit.answers[criterionId].comment = val;
+  audit.synced = false;
+  dbPut('audits', audit);
+}
+function updateProgress(grille) {
+  const audit = state.audits.find(a=>a.id===state.currentAuditId);
+  const total = grille.sections.reduce((s,sec)=>s+sec.criteria.length,0);
+  const answered = Object.values(audit.answers).filter(a=>a.val).length;
+  const pct = total ? Math.round(answered/total*100) : 0;
+  document.getElementById('audit-progress-label').textContent = `${answered}/${total}`;
+  document.getElementById('audit-progress-fill').style.width = pct+'%';
+  document.getElementById('audit-progress-pct').textContent = pct+'%';
+}
+document.getElementById('btn-prev-section').onclick = () => {
+  if (state.currentSectionIdx > 0) switchSection(state.currentSectionIdx-1);
+};
+document.getElementById('btn-next-section').onclick = () => {
+  const audit = state.audits.find(a=>a.id===state.currentAuditId);
+  const grille = state.grilles.find(g=>g.id===audit.grilleId);
+  if (state.currentSectionIdx < grille.sections.length-1) {
+    switchSection(state.currentSectionIdx+1);
+  } else {
+    saveAndSync();
+    showHome();
+  }
+};
+document.getElementById('btn-save-audit').onclick = () => { saveAndSync(); showToast('Enregistré'); };
+document.getElementById('btn-back-audit').onclick = () => { saveAndSync(); showHome(); };
+
+// ============================================================
+// PHOTOS
+// ============================================================
+function triggerPhoto(criterionId) {
+  state.photoTargetId = criterionId;
+  document.getElementById('photo-input').click();
+}
+document.getElementById('photo-input').onchange = async (e) => {
+  const file = e.target.files[0];
+  if (!file || !state.photoTargetId) return;
+  const dataURL = await fileToDataURL(file);
+  const compressed = await compressImage(dataURL, 800);
+  const audit = state.audits.find(a=>a.id===state.currentAuditId);
+  if (!audit.answers[state.photoTargetId]) audit.answers[state.photoTargetId] = {};
+  if (!audit.answers[state.photoTargetId].photos) audit.answers[state.photoTargetId].photos = [];
+  audit.answers[state.photoTargetId].photos.push(compressed);
+  audit.synced = false;
+  dbPut('audits', audit);
+  const zone = document.getElementById('photos-'+state.photoTargetId);
+  const addBtn = zone.querySelector('.photo-add-btn');
+  const thumb = document.createElement('div');
+  thumb.className = 'photo-thumb';
+  const idx = audit.answers[state.photoTargetId].photos.length-1;
+  thumb.innerHTML = `<img src="${compressed}"><div class="delete-photo" onclick="deletePhoto('${state.photoTargetId}',${idx})">×</div>`;
+  zone.insertBefore(thumb, addBtn);
+  e.target.value = '';
+  showToast('Photo ajoutée');
+};
+function deletePhoto(criterionId, idx) {
+  const audit = state.audits.find(a=>a.id===state.currentAuditId);
+  audit.answers[criterionId].photos.splice(idx,1);
+  audit.synced = false;
+  dbPut('audits', audit);
+  const zone = document.getElementById('photos-'+criterionId);
+  const thumbs = zone.querySelectorAll('.photo-thumb');
+  thumbs[idx].remove();
+}
+function fileToDataURL(file) {
+  return new Promise(res => { const r=new FileReader(); r.onload=e=>res(e.target.result); r.readAsDataURL(file); });
+}
+function compressImage(dataURL, maxW) {
+  return new Promise(res => {
+    const img = new Image();
+    img.onload = () => {
+      const ratio = Math.min(maxW/img.width, maxW/img.height, 1);
+      const c = document.createElement('canvas');
+      c.width = img.width*ratio; c.height = img.height*ratio;
+      c.getContext('2d').drawImage(img,0,0,c.width,c.height);
+      res(c.toDataURL('image/jpeg',0.7));
+    };
+    img.src = dataURL;
+  });
+}
+
+// ============================================================
+// GOOGLE DRIVE SYNC
+// ============================================================
+async function saveAndSync() {
+  const audit = state.audits.find(a=>a.id===state.currentAuditId);
+  if (!audit) return;
+  dbPut('audits', audit);
+  if (!state.accessToken) { updateSyncIndicator(false); return; }
+  updateSyncIndicator(null); // pending
+  try {
+    await uploadAuditToDrive(audit);
+    audit.synced = true;
+    dbPut('audits', audit);
+    updateSyncIndicator(true);
+  } catch(e) {
+    console.error('Sync error', e);
+    updateSyncIndicator(false);
+    showToast('Sync Drive échouée — sauvegardé en local');
+  }
+}
+async function uploadAuditToDrive(audit) {
+  // Create subfolder for this audit
+  const folderName = `${audit.site} — ${new Date(audit.date).toLocaleDateString('fr-FR')}`;
+  const folderId = await getOrCreateFolder(folderName, CONFIG.DRIVE_FOLDER_ID);
+
+  // Upload photos
+  const answersForExport = {};
+  for (const [cId, ans] of Object.entries(audit.answers)) {
+    const photoNames = [];
+    if (ans.photos) {
+      for (let i=0; i<ans.photos.length; i++) {
+        const name = `${cId}_photo${i+1}.jpg`;
+        await uploadFileToDrive(ans.photos[i], name, folderId, 'image/jpeg');
+        photoNames.push(name);
+      }
+    }
+    answersForExport[cId] = { val: ans.val, comment: ans.comment||'', photos: photoNames };
+  }
+
+  // Upload JSON summary
+  const grille = state.grilles.find(g=>g.id===audit.grilleId);
+  const summary = {
+    id: audit.id, site: audit.site, grille: audit.grilleName,
+    date: new Date(audit.date).toISOString(), auditor: audit.auditor,
+    answers: answersForExport,
+    stats: buildStats(audit, grille)
+  };
+  const jsonBlob = JSON.stringify(summary, null, 2);
+  await uploadFileToDrive('data:application/json;base64,'+btoa(unescape(encodeURIComponent(jsonBlob))), 'rapport.json', folderId, 'application/json');
+}
+function buildStats(audit, grille) {
+  if (!grille) return {};
+  let ok=0,nok=0,na=0,total=0;
+  grille.sections.forEach(s=>s.criteria.forEach(c=>{
+    total++;
+    const a=audit.answers[c.id];
+    if(a?.val==='ok')ok++;
+    else if(a?.val==='nok')nok++;
+    else if(a?.val==='na')na++;
+  }));
+  return {total,ok,nok,na,unanswered:total-ok-nok-na,conformity:total?Math.round(ok/(ok+nok||1)*100):0};
+}
+async function getOrCreateFolder(name, parentId) {
+  // Search
+  const q = `name='${name}' and mimeType='application/vnd.google-apps.folder' and '${parentId}' in parents and trashed=false`;
+  const res = await driveRequest(`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id)`);
+  if (res.files && res.files.length) return res.files[0].id;
+  // Create
+  const created = await driveRequest('https://www.googleapis.com/drive/v3/files', 'POST', {
+    name, mimeType: 'application/vnd.google-apps.folder', parents: [parentId]
+  });
+  return created.id;
+}
+async function uploadFileToDrive(dataURL, name, parentId, mimeType) {
+  const base64 = dataURL.split(',')[1];
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i=0;i<binary.length;i++) bytes[i]=binary.charCodeAt(i);
+  const boundary = 'audit_boundary';
+  const metaPart = JSON.stringify({name, parents:[parentId]});
+  const body = `--${boundary}\r\nContent-Type: application/json\r\n\r\n${metaPart}\r\n--${boundary}\r\nContent-Type: ${mimeType}\r\nContent-Transfer-Encoding: base64\r\n\r\n${base64}\r\n--${boundary}--`;
+  const resp = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
+    method: 'POST',
+    headers: { 'Authorization': 'Bearer '+state.accessToken, 'Content-Type': `multipart/related; boundary=${boundary}` },
+    body
+  });
+  if (!resp.ok) throw new Error('Upload failed: '+resp.status);
+  return resp.json();
+}
+async function driveRequest(url, method='GET', body=null) {
+  const opts = { method, headers: { 'Authorization':'Bearer '+state.accessToken, 'Content-Type':'application/json' } };
+  if (body) opts.body = JSON.stringify(body);
+  const r = await fetch(url, opts);
+  if (!r.ok) throw new Error('Drive API '+r.status);
+  return r.json();
+}
+function updateSyncIndicator(status) {
+  const dot = document.getElementById('sync-dot');
+  const label = document.getElementById('sync-label');
+  if (status===null) { dot.classList.add('pending'); label.textContent='Synchronisation…'; }
+  else if (status) { dot.classList.remove('pending'); dot.style.background='var(--ok)'; label.textContent='Synchronisé'; }
+  else { dot.classList.remove('pending'); dot.style.background='var(--nok)'; label.textContent='Hors ligne'; }
+}
+
+// ============================================================
+// GRILLES
+// ============================================================
+document.getElementById('btn-grilles').onclick = showGrilles;
+document.getElementById('btn-back-grilles').onclick = showHome;
+document.getElementById('btn-back-grille-detail').onclick = showGrilles;
+function showGrilles() {
+  renderGrillesList();
+  showScreen('screen-grilles');
+}
+function renderGrillesList() {
+  const list = document.getElementById('grilles-list');
+  if (!state.grilles.length) {
+    list.innerHTML = '<div class="empty-state">Aucune grille.<br>Crée ta première grille d\'audit !</div>';
+    return;
+  }
+  list.innerHTML = state.grilles.map(g => `
+    <div class="audit-card" onclick="openGrilleDetail('${g.id}')">
+      <div class="audit-card-top">
+        <div class="audit-card-left">
+          <div class="audit-card-title">${g.name}</div>
+          <div class="audit-card-sub">${g.sections.length} sections · ${g.sections.reduce((s,sec)=>s+sec.criteria.length,0)} critères</div>
+        </div>
+        <span style="font-size:20px;color:var(--text3)">›</span>
+      </div>
+    </div>`).join('');
+}
+document.getElementById('btn-new-grille').onclick = () => {
+  const name = prompt('Nom de la nouvelle grille :');
+  if (!name) return;
+  const g = { id:'g_'+Date.now(), name, sections:[] };
+  state.grilles.push(g);
+  dbPut('grilles', g);
+  syncGrillesToDrive();
+  openGrilleDetail(g.id);
+};
+function openGrilleDetail(id) {
+  state.currentGrilleId = id;
+  const g = state.grilles.find(g=>g.id===id);
+  document.getElementById('grille-detail-title').textContent = g.name;
+  renderGrilleSections(g);
+  showScreen('screen-grille-detail');
+}
+function renderGrilleSections(grille) {
+  const list = document.getElementById('grille-sections-list');
+  list.innerHTML = grille.sections.map((s,si) => `
+    <div class="grid-section-block">
+      <div class="grid-section-header" onclick="toggleSection('${s.id}')">
+        <span class="grid-section-name">${s.name}</span>
+        <span class="grid-section-count">${s.criteria.length} critères</span>
+        <span class="grid-chevron" id="chev-${s.id}">›</span>
+      </div>
+      <div class="grid-items" id="items-${s.id}">
+        ${s.criteria.map((c,ci)=>`
+          <div class="grid-item-row">
+            <span class="grid-item-text">${c.text}</span>
+            <button class="grid-item-delete" onclick="deleteCriterion('${s.id}','${c.id}')">×</button>
+          </div>`).join('')}
+        <div class="grid-add-item" onclick="addCriterion('${s.id}')">+ Ajouter un critère</div>
+      </div>
+    </div>`).join('');
+}
+function toggleSection(sectionId) {
+  const items = document.getElementById('items-'+sectionId);
+  const chev = document.getElementById('chev-'+sectionId);
+  items.classList.toggle('open');
+  chev.classList.toggle('open');
+}
+function addCriterion(sectionId) {
+  const text = prompt('Texte du critère :');
+  if (!text) return;
+  const g = state.grilles.find(g=>g.id===state.currentGrilleId);
+  const section = g.sections.find(s=>s.id===sectionId);
+  section.criteria.push({id:'c_'+Date.now(), text});
+  dbPut('grilles', g);
+  renderGrilleSections(g);
+  document.getElementById('items-'+sectionId).classList.add('open');
+  document.getElementById('chev-'+sectionId).classList.add('open');
+}
+function deleteCriterion(sectionId, criterionId) {
+  if (!confirm('Supprimer ce critère ?')) return;
+  const g = state.grilles.find(g=>g.id===state.currentGrilleId);
+  const section = g.sections.find(s=>s.id===sectionId);
+  section.criteria = section.criteria.filter(c=>c.id!==criterionId);
+  dbPut('grilles', g);
+  renderGrilleSections(g);
+  document.getElementById('items-'+sectionId).classList.add('open');
+  document.getElementById('chev-'+sectionId).classList.add('open');
+}
+document.getElementById('btn-add-section').onclick = () => {
+  const name = prompt('Nom de la section :');
+  if (!name) return;
+  const g = state.grilles.find(g=>g.id===state.currentGrilleId);
+  g.sections.push({id:'s_'+Date.now(), name, criteria:[]});
+  dbPut('grilles', g);
+  renderGrilleSections(g);
+};
+const saveGrille = () => {
+  const g = state.grilles.find(g=>g.id===state.currentGrilleId);
+  dbPut('grilles', g);
+  syncGrillesToDrive();
+  showToast('Grille enregistrée');
+};
+document.getElementById('btn-save-grille').onclick = saveGrille;
+document.getElementById('btn-save-grille-bottom').onclick = saveGrille;
+
+async function syncGrillesToDrive() {
+  if (!state.accessToken) return;
+  try {
+    const data = JSON.stringify(state.grilles, null, 2);
+    const dataURL = 'data:application/json;base64,'+btoa(unescape(encodeURIComponent(data)));
+    // Search for existing file
+    const q = `name='grilles.json' and '${CONFIG.DRIVE_FOLDER_ID}' in parents and trashed=false`;
+    const res = await driveRequest(`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id)`);
+    if (res.files && res.files.length) {
+      // Update
+      const base64 = btoa(unescape(encodeURIComponent(data)));
+      await fetch(`https://www.googleapis.com/upload/drive/v3/files/${res.files[0].id}?uploadType=media`, {
+        method: 'PATCH',
+        headers: { 'Authorization':'Bearer '+state.accessToken, 'Content-Type':'application/json' },
+        body: data
+      });
+    } else {
+      await uploadFileToDrive(dataURL, 'grilles.json', CONFIG.DRIVE_FOLDER_ID, 'application/json');
+    }
+  } catch(e) { console.error('Grilles sync error', e); }
+}
+async function loadGrillesFromDrive() {
+  if (!state.accessToken) return false;
+  try {
+    const q = `name='grilles.json' and '${CONFIG.DRIVE_FOLDER_ID}' in parents and trashed=false`;
+    const res = await driveRequest(`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id)`);
+    if (!res.files || !res.files.length) return false;
+    const file = await fetch(`https://www.googleapis.com/drive/v3/files/${res.files[0].id}?alt=media`, {
+      headers: { 'Authorization':'Bearer '+state.accessToken }
+    });
+    const grilles = await file.json();
+    state.grilles = grilles;
+    for (const g of grilles) await dbPut('grilles', g);
+    return true;
+  } catch(e) { console.error('Load grilles error', e); return false; }
+}
+
+// ============================================================
+// INSTALL PWA
+// ============================================================
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault();
+  state.deferredInstall = e;
+  const banner = document.getElementById('install-banner');
+  banner.classList.remove('hidden');
+  banner.onclick = () => {
+    state.deferredInstall.prompt();
+    state.deferredInstall.userChoice.then(() => { banner.classList.add('hidden'); });
+  };
+});
+
+// ============================================================
+// TOAST
+// ============================================================
+let toastTimer;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+// ============================================================
+// INIT
+// ============================================================
+async function init() {
+  await openDB();
+
+  // Load local data
+  const [localAudits, localGrilles, savedUser, savedToken] = await Promise.all([
+    dbGetAll('audits'), dbGetAll('grilles'),
+    dbGet('settings','user'), dbGet('settings','accessToken')
+  ]);
+  state.audits = localAudits || [];
+  state.grilles = localGrilles || [];
+  if (savedUser) state.user = savedUser;
+  if (savedToken) state.accessToken = savedToken;
+
+  // Seed default grille if none
+  if (!state.grilles.length) {
+    const defaultGrille = {
+      id: 'g_default', name: 'Sécurité standard',
+      sections: [
+        { id: 's1', name: 'EPI & Protection', criteria: [
+          {id:'c1',text:'EPI disponibles et en bon état pour tous les opérateurs'},
+          {id:'c2',text:'Signalétique de sécurité visible et à jour'},
+          {id:'c3',text:'Extincteurs contrôlés < 12 mois'},
+        ]},
+        { id: 's2', name: 'Circulation & Accès', criteria: [
+          {id:'c4',text:'Allées de circulation dégagées et marquées'},
+          {id:'c5',text:'Issues de secours accessibles et non obstruées'},
+          {id:'c6',text:'Éclairage suffisant dans toutes les zones'},
+        ]},
+        { id: 's3', name: 'Équipements', criteria: [
+          {id:'c7',text:'Machines en bon état de fonctionnement'},
+          {id:'c8',text:'Dispositifs de sécurité actifs sur les machines'},
+          {id:'c9',text:'Registre de maintenance à jour'},
+        ]}
+      ]
+    };
+    state.grilles.push(defaultGrille);
+    await dbPut('grilles', defaultGrille);
+  }
+
+  // Init Google auth
+  if (typeof google !== 'undefined') {
+    initAuth();
+  } else {
+    document.querySelector('script[src*="gsi"]').onload = initAuth;
+  }
+
+  document.getElementById('loading').style.display = 'none';
+
+  if (state.user && state.accessToken) {
+    // Try to load fresh grilles from Drive
+    loadGrillesFromDrive().then(loaded => {
+      if (loaded) renderGrillesList();
+    });
+    showHome();
+  } else if (state.user) {
+    showHome();
+  } else {
+    showScreen('screen-signin');
+  }
+}
+
+window.addEventListener('load', init);
+
+// Service worker registration
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js').catch(e => console.log('SW reg failed', e));
+}
+</script>
+</body>
+</html>
