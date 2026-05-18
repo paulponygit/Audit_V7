@@ -2,42 +2,47 @@
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
-  <title>Import données historiques → Drive</title>
+  <title>Import + Photos → Drive</title>
   <style>
-    body { font-family: monospace; background: #0f0f0f; color: #e0e0e0; padding: 40px; max-width: 600px; margin: 0 auto; }
-    h1 { font-size: 18px; font-weight: 400; margin-bottom: 24px; color: #c8b090; }
-    .log { background: #1a1a1a; border: 0.5px solid #333; border-radius: 8px; padding: 16px; min-height: 300px; font-size: 12px; line-height: 1.8; overflow-y: auto; max-height: 500px; }
-    .ok { color: #1a9e5c; }
-    .err { color: #d94040; }
-    .info { color: #888; }
-    button { margin-top: 20px; background: #e8ddd0; color: #0f0f0f; border: none; border-radius: 8px; padding: 12px 24px; font-size: 14px; font-weight: 500; cursor: pointer; font-family: monospace; }
-    button:disabled { opacity: 0.4; cursor: not-allowed; }
+    body{font-family:monospace;background:#0f0f0f;color:#e0e0e0;padding:40px;max-width:660px;margin:0 auto}
+    h1{font-size:18px;font-weight:400;margin-bottom:24px;color:#c8b090}
+    .log{background:#1a1a1a;border:.5px solid #333;border-radius:8px;padding:16px;min-height:300px;font-size:12px;line-height:1.8;overflow-y:auto;max-height:600px}
+    .ok{color:#1a9e5c}.err{color:#d94040}.info{color:#888}.warn{color:#c8a020}
+    button{margin-top:20px;background:#e8ddd0;color:#0f0f0f;border:none;border-radius:8px;padding:12px 24px;font-size:14px;font-weight:500;cursor:pointer;font-family:monospace}
+    button:disabled{opacity:.4;cursor:not-allowed}
+    .progress{margin-top:12px;height:4px;background:#333;border-radius:2px;overflow:hidden}
+    .progress-fill{height:100%;background:#c8b090;border-radius:2px;transition:width .3s}
   </style>
 </head>
 <body>
-<h1>Import données historiques → Drive</h1>
+<h1>Import données + photos → Drive</h1>
 <div class="log" id="log">En attente…</div>
-<button id="btn-import" onclick="startImport()">Se connecter et importer</button>
+<div class="progress"><div class="progress-fill" id="prog" style="width:0%"></div></div>
+<button id="btn" onclick="startImport()">Se connecter et importer</button>
 
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <script>
-const CLIENT_ID = '798980765725-mah2f7vh8bgohaeesbq7mlauhr9l3tba.apps.googleusercontent.com';
-const FOLDER_ID = '171pYo5m2xodVxGZxR_a88YU0LmK726vz';
+const CLIENT_ID   = '798980765725-mah2f7vh8bgohaeesbq7mlauhr9l3tba.apps.googleusercontent.com';
+const FOLDER_ID   = '171pYo5m2xodVxGZxR_a88YU0LmK726vz';
+const PICTURES_ID = '1OduLLkOsj2yRXuhyeDqB6cperOl9dD-i';
 let accessToken = null;
+
+const PHOTO_MAP = {"10ba6f22L":{"question1":["/Pictures/Bordeaux/08/06/2025/10ba6f22L.Picture - deposited vehicles.164046.jpg"],"question2":["/Pictures/Bordeaux/08/06/2025/10ba6f22L.Picture - vehicles in the truck.164100.jpg"]},"ac49ddb9L":{"question1":["/Pictures/Bayonne/08/07/2025/ac49ddb9L.Picture - deposited vehicles.140318.jpg"],"question2":["/Pictures/Bayonne/08/07/2025/ac49ddb9L.Picture - vehicles in the truck.140409.jpg"]},"e239e323W":{"question47":["/Pictures/Orléans/Mon Jul 21 2025 00-00-00 GMT+0200 (Central European Summer Time)/e239e323W.Picture - Overall storage.052759.jpg"],"question49":["/Pictures/Orléans/Mon Jul 21 2025 00-00-00 GMT+0200 (Central European Summer Time)/e239e323W.Picture - Tools.052627.jpg"],"question50":["/Pictures/Orléans/Mon Jul 21 2025 00-00-00 GMT+0200 (Central European Summer Time)/e239e323W.Picture - Tools.052627.jpg"],"question51":["/Pictures/Orléans/Mon Jul 21 2025 00-00-00 GMT+0200 (Central European Summer Time)/e239e323W.Picture - Screws and Bolts.052653.jpg"],"question52":["/Pictures/Orléans/Mon Jul 21 2025 00-00-00 GMT+0200 (Central European Summer Time)/e239e323W.Picture - Screws and Bolts.052653.jpg"],"question54":["/Pictures/Orléans/Mon Jul 21 2025 00-00-00 GMT+0200 (Central European Summer Time)/e239e323W.Picture - Spare Parts.052831.jpg"],"question59":["/Pictures/Orléans/Mon Jul 21 2025 00-00-00 GMT+0200 (Central European Summer Time)/e239e323W.Picture - Common bin.052901.jpg"],"question69":["/Pictures/Orléans/Mon Jul 21 2025 00-00-00 GMT+0200 (Central European Summer Time)/e239e323W.Picture - If key box not safe.053018.jpg"],"question76":["/Pictures/Orléans/Mon Jul 21 2025 00-00-00 GMT+0200 (Central European Summer Time)/e239e323W.Picture - If alarm not according to standards.053056.jpg"],"question77":["/Pictures/Orléans/Mon Jul 21 2025 00-00-00 GMT+0200 (Central European Summer Time)/e239e323W.Picture - If alarm not according to standards.053056.jpg"],"question79":["/Pictures/Orléans/Mon Jul 21 2025 00-00-00 GMT+0200 (Central European Summer Time)/e239e323W.Picture - If alarm not according to standards.053056.jpg"]},"4b7d8152M":{"question7":["/Pictures/Orléans/Mon Jul 21 2025 00-00-00 GMT+0200 (Central European Summer Time)/4b7d8152M.Picture - Dropped Off Zone (WH).053144.jpg"],"question9":["/Pictures/Orléans/Mon Jul 21 2025 00-00-00 GMT+0200 (Central European Summer Time)/4b7d8152M.Picture - Waiting repair zone.053210.jpg"],"question11":["/Pictures/Orléans/Mon Jul 21 2025 00-00-00 GMT+0200 (Central European Summer Time)/4b7d8152M.Picture - Deployment Zone.053319.jpg"]},"980237ccM":{"question7":["/Pictures/Poitiers/Mon Jul 21 2025 00-00-00 GMT+0200 (Central European Summer Time)/980237ccM.Picture - Dropped Off Zone (WH).060327.jpg"],"question9":["/Pictures/Poitiers/Mon Jul 21 2025 00-00-00 GMT+0200 (Central European Summer Time)/980237ccM.Picture - Waiting repair zone.060351.jpg"],"question11":["/Pictures/Poitiers/Mon Jul 21 2025 00-00-00 GMT+0200 (Central European Summer Time)/980237ccM.Picture - Deployment Zone.060432.jpg"]},"72ec32d2W":{"question47":["/Pictures/Poitiers/Mon Jul 21 2025 00-00-00 GMT+0200 (Central European Summer Time)/72ec32d2W.Picture - Overall storage.061059.jpg"],"question49":["/Pictures/Poitiers/Mon Jul 21 2025 00-00-00 GMT+0200 (Central European Summer Time)/72ec32d2W.Picture - Tools.060724.jpg"],"question51":["/Pictures/Poitiers/Mon Jul 21 2025 00-00-00 GMT+0200 (Central European Summer Time)/72ec32d2W.Picture - Screws and Bolts.060756.jpg"],"question54":["/Pictures/Poitiers/Mon Jul 21 2025 00-00-00 GMT+0200 (Central European Summer Time)/72ec32d2W.Picture - Spare Parts.060828.jpg"],"question59":["/Pictures/Poitiers/Mon Jul 21 2025 00-00-00 GMT+0200 (Central European Summer Time)/72ec32d2W.Picture - Common bins.060948.jpg"],"question69":["/Pictures/Poitiers/Mon Jul 21 2025 00-00-00 GMT+0200 (Central European Summer Time)/72ec32d2W.Picture - If key box not safe.061148.jpg"]},"574170dfS":{"question33":["/Pictures/Dijon/07/23/2025/574170dfS.Picture - Screenshot of available vehicles on map.095309.jpg"]},"d95cfc5dW":{"question47":["/Pictures/Dijon/07/23/2025/d95cfc5dW.Picture - Overall storage.100008.jpg"],"question49":["/Pictures/Dijon/07/23/2025/d95cfc5dW.Picture - Tools.095737.jpg"],"question51":["/Pictures/Dijon/07/23/2025/d95cfc5dW.Picture - Screws and Bolts.095824.jpg"],"question54":["/Pictures/Dijon/07/23/2025/d95cfc5dW.Picture - Spare Parts.095852.jpg"],"question59":["/Pictures/Dijon/07/23/2025/d95cfc5dW.Picture - Common bins.095934.jpg"],"question69":["/Pictures/Dijon/07/23/2025/d95cfc5dW.Picture - If key box not safe.100050.jpg"],"question76":["/Pictures/Dijon/07/23/2025/d95cfc5dW.Picture - If alarm not according to standards.100137.jpg"]},"532206f4M":{"question7":["/Pictures/Dijon/07/23/2025/532206f4M.Picture - Dropped Off Zone (WH).094820.jpg"],"question9":["/Pictures/Dijon/07/23/2025/532206f4M.Picture - Waiting repair zone.094851.jpg"],"question11":["/Pictures/Dijon/07/23/2025/532206f4M.Picture - Deployment Zone.094936.jpg"]},"8ea73045M":{"question7":["/Pictures/Nice/07/30/2025/8ea73045M.Picture - Dropped Off Zone (WH).112618.jpg"],"question9":["/Pictures/Nice/07/30/2025/8ea73045M.Picture - Waiting repair zone.112703.jpg"],"question11":["/Pictures/Nice/07/30/2025/8ea73045M.Picture - Deployment Zone.112733.jpg"]},"8ea73045W":{"question47":["/Pictures/Nice/07/30/2025/8ea73045W.Picture - Overall storage.113358.jpg"],"question49":["/Pictures/Nice/07/30/2025/8ea73045W.Picture - Tools.113100.jpg"],"question51":["/Pictures/Nice/07/30/2025/8ea73045W.Picture - Screws and Bolts.113133.jpg"],"question54":["/Pictures/Nice/07/30/2025/8ea73045W.Picture - Spare Parts.113204.jpg"],"question59":["/Pictures/Nice/07/30/2025/8ea73045W.Picture - Common bins.113259.jpg"],"question69":["/Pictures/Nice/07/30/2025/8ea73045W.Picture - If key box not safe.113453.jpg"],"question76":["/Pictures/Nice/07/30/2025/8ea73045W.Picture - If alarm not according to standards.113532.jpg"]},"10ba6f22M":{"question7":["/Pictures/Bordeaux/08/06/2025/10ba6f22M.Picture - Dropped Off Zone (WH).163759.jpg"],"question9":["/Pictures/Bordeaux/08/06/2025/10ba6f22M.Picture - Waiting repair zone.163826.jpg"],"question11":["/Pictures/Bordeaux/08/06/2025/10ba6f22M.Picture - Deployment Zone.163852.jpg"]},"10ba6f22W":{"question47":["/Pictures/Bordeaux/08/06/2025/10ba6f22W.Picture - Overall storage.164506.jpg"],"question49":["/Pictures/Bordeaux/08/06/2025/10ba6f22W.Picture - Tools.164233.jpg"],"question51":["/Pictures/Bordeaux/08/06/2025/10ba6f22W.Picture - Screws and Bolts.164305.jpg"],"question54":["/Pictures/Bordeaux/08/06/2025/10ba6f22W.Picture - Spare Parts.164338.jpg"],"question59":["/Pictures/Bordeaux/08/06/2025/10ba6f22W.Picture - Common bins.164415.jpg"],"question69":["/Pictures/Bordeaux/08/06/2025/10ba6f22W.Picture - If key box not safe.164548.jpg"],"question76":["/Pictures/Bordeaux/08/06/2025/10ba6f22W.Picture - If alarm not according to standards.164629.jpg"]},"3ced2a00M":{"question7":["/Pictures/Bayonne/08/07/2025/3ced2a00M.Picture - Dropped Off Zone (WH).141616.jpg"],"question9":["/Pictures/Bayonne/08/07/2025/3ced2a00M.Picture - Waiting repair zone.141651.jpg"],"question11":["/Pictures/Bayonne/08/07/2025/3ced2a00M.Picture - Deployment Zone.141724.jpg"]},"31838dd6W":{"question47":["/Pictures/Bayonne/08/07/2025/31838dd6W.Picture - Overall storage.142500.jpg"],"question49":["/Pictures/Bayonne/08/07/2025/31838dd6W.Picture - Tools.142149.jpg"],"question51":["/Pictures/Bayonne/08/07/2025/31838dd6W.Picture - Screws and Bolts.142220.jpg"],"question54":["/Pictures/Bayonne/08/07/2025/31838dd6W.Picture - Spare Parts.142255.jpg"],"question59":["/Pictures/Bayonne/08/07/2025/31838dd6W.Picture - Common bins.142355.jpg"],"question69":["/Pictures/Bayonne/08/07/2025/31838dd6W.Picture - If key box not safe.142533.jpg"],"question76":["/Pictures/Bayonne/08/07/2025/31838dd6W.Picture - If alarm not according to standards.142602.jpg"]},"bae42fa7M":{"question7":["/Pictures/Angers/Thu Aug 14 2025 00-00-00 GMT+0200 (Central European Summer Time)/bae42fa7M.Picture - Dropped Off Zone (WH).141107.jpg"],"question9":["/Pictures/Angers/Thu Aug 14 2025 00-00-00 GMT+0200 (Central European Summer Time)/bae42fa7M.Picture - Waiting repair zone.141128.jpg"],"question11":["/Pictures/Angers/Thu Aug 14 2025 00-00-00 GMT+0200 (Central European Summer Time)/bae42fa7M.Picture - Deployment Zone.141138.jpg"]},"bae42fa7Q":{"question47":["/Pictures/Angers/20250814/bae42fa7Q.Picture - Overall storage.124850.jpg"],"question49":["/Pictures/Angers/20250814/bae42fa7Q.Picture - Tools.124914.jpg"],"question51":["/Pictures/Angers/20250814/bae42fa7Q.Picture - Screws and Bolts.124943.jpg"],"question54":["/Pictures/Angers/20250814/bae42fa7Q.Picture - Spare Parts.125011.jpg"],"question59":["/Pictures/Angers/20250814/bae42fa7Q.Picture - Common bins.125110.jpg"],"question62":["/Pictures/Angers/20250814/bae42fa7Q.Picture - Zones.125048.jpg"],"question63":["/Pictures/Angers/20250814/bae42fa7Q.Picture - Container inside (from outside).125910.jpg"],"question69":["/Pictures/Angers/20250814/bae42fa7Q.Picture - If extinguishers not according to standards.130903.jpg"],"question71":["/Pictures/Angers/20250814/bae42fa7Q.Picture - Fire extinguisher sticker of last check.130831.jpg"],"question74":["/Pictures/Angers/20250814/bae42fa7Q.Picture - Vehicle part bins.125323.jpg"],"question76":["/Pictures/Angers/20250814/bae42fa7Q.Picture if alarm not according to standards.130744.jpg"],"question78":["/Pictures/Angers/20250814/bae42fa7Q.Picture if battery at unidentified places.130715.jpg"],"question80":["/Pictures/Angers/20250814/bae42fa7Q.Picture if chemical products not well stored.130744.jpg"]},"a338b760":{"question7":["/Pictures/Herouville/10/24/2024/a338b760.Picture - Dropped Off Zone (WH).jpg"],"question9":["/Pictures/Herouville/10/24/2024/a338b760.Picture - Waiting repair zone.jpg"],"question11":["/Pictures/Herouville/10/24/2024/a338b760.Picture - Deployment Zone.jpg"]},"9d5fb67f":{"question47":["/Pictures/Herouville/10/24/2024/9d5fb67f.Picture - Overall storage.jpg"],"question49":["/Pictures/Herouville/10/24/2024/9d5fb67f.Picture - Tools.jpg"],"question51":["/Pictures/Herouville/10/24/2024/9d5fb67f.Picture - Screws and Bolts.jpg"],"question54":["/Pictures/Herouville/10/24/2024/9d5fb67f.Picture - Spare Parts.jpg"],"question59":["/Pictures/Herouville/10/24/2024/9d5fb67f.Picture - Common bins.jpg"],"question76":["/Pictures/Herouville/10/24/2024/9d5fb67f.Picture - If alarm not according to standards.jpg"]}};
 
 function log(msg, type='info') {
   const el = document.getElementById('log');
   el.innerHTML += `<div class="${type}">${msg}</div>`;
   el.scrollTop = el.scrollHeight;
 }
+function setProgress(pct) { document.getElementById('prog').style.width = pct + '%'; }
 
 function startImport() {
-  document.getElementById('btn-import').disabled = true;
+  document.getElementById('btn').disabled = true;
   const tokenClient = google.accounts.oauth2.initTokenClient({
     client_id: CLIENT_ID,
     scope: 'https://www.googleapis.com/auth/drive',
     callback: async (resp) => {
-      if (resp.error) { log('Erreur auth: '+resp.error, 'err'); return; }
+      if (resp.error) { log('Erreur auth: ' + resp.error, 'err'); document.getElementById('btn').disabled=false; return; }
       accessToken = resp.access_token;
       log('✓ Connecté à Google Drive', 'ok');
       await runImport();
@@ -48,62 +53,142 @@ function startImport() {
 
 async function runImport() {
   try {
-    log('Chargement des données historiques…');
-    const [grillesRes, auditsRes] = await Promise.all([
-      fetch('grilles_data.json'), fetch('audits_data.json')
-    ]);
+    log('Chargement des données…');
+    const [grillesRes, auditsRes] = await Promise.all([fetch('grilles_data.json'), fetch('audits_data.json')]);
     const grilles = await grillesRes.json();
     const audits = await auditsRes.json();
-    log(`→ ${grilles.length} grilles, ${audits.length} audits à importer`);
+    log(`→ ${grilles.length} grilles, ${audits.length} audits, ${Object.keys(PHOTO_MAP).length} audits avec photos`);
 
-    // Upload grilles.json
     log('Upload grilles.json…');
     await uploadOrUpdate('grilles.json', JSON.stringify(grilles, null, 2), 'application/json', FOLDER_ID);
-    log('✓ grilles.json uploadé', 'ok');
+    log('✓ grilles.json', 'ok');
 
-    // Build audits index
-    log('Construction de l\'index des audits…');
-    const indexEntries = audits.map(a => ({
-      id: a.id, site: a.site,
-      grilleId: a.grilleId, grilleName: a.grilleName||a.grille||'',
-      date: a.date, auditor: a.auditor, status: a.status,
-      driveFolderId: null, // will be updated on next sync
-      stats: a.stats || {conformity:0, majors:0, minors:0, concerns:0}
-    }));
-    await uploadOrUpdate('audits_index.json', JSON.stringify(indexEntries, null, 2), 'application/json', FOLDER_ID);
-    log('✓ audits_index.json créé', 'ok');
-
-    // Upload individual audit folders
-    log(`\nCréation des dossiers d'audit…`);
+    // Cache for Drive folder lookups
+    const folderCache = {};
+    const indexEntries = [];
     let done = 0;
+
     for (const audit of audits) {
-      if (!audit.site || !audit.date) continue;
-      const folderName = `${audit.site} — ${new Date(audit.date).toLocaleDateString('fr-FR')}`;
-      try {
-        const folderId = await getOrCreateFolder(folderName, FOLDER_ID);
-        const summary = {
-          id: audit.id, site: audit.site, grille: audit.grilleName,
-          date: new Date(audit.date).toISOString(), auditor: audit.auditor,
-          status: audit.status, answers: audit.answers, historical: true
-        };
-        await uploadOrUpdate('rapport.json', JSON.stringify(summary, null, 2), 'application/json', folderId);
-        done++;
-        if (done % 5 === 0) log(`→ ${done}/${audits.length} audits…`);
-      } catch(e) { log(`⚠ Erreur audit ${audit.id}: ${e.message}`, 'err'); }
+      done++;
+      setProgress(Math.round(done / audits.length * 90));
+      const dateStr = new Date(audit.date).toLocaleDateString('fr-FR');
+      const folderName = `${audit.site} — ${dateStr} — ${audit.id}`;
+      log(`[${done}/${audits.length}] ${audit.site} · ${audit.grilleName}`);
+
+      const auditFolderId = await getOrCreateFolder(folderName, FOLDER_ID);
+      audit.driveFolderId = auditFolderId;
+
+      // Map photos
+      const auditPhotos = PHOTO_MAP[audit.id];
+      if (auditPhotos) {
+        if (!audit.answers) audit.answers = {};
+        let ok = 0, warn = 0;
+        for (const [qId, paths] of Object.entries(auditPhotos)) {
+          if (!audit.answers[qId]) audit.answers[qId] = {val:null, comment:'', photos:[]};
+          const photoLinks = [];
+          for (const picPath of paths) {
+            try {
+              const fileId = await findInPictures(picPath, folderCache);
+              if (fileId) {
+                const filename = picPath.split('/').pop();
+                const copiedId = await copyFile(fileId, filename, auditFolderId);
+                photoLinks.push(`https://drive.google.com/uc?id=${copiedId}`);
+                ok++;
+              } else { warn++; }
+            } catch(e) { log(`  ✗ ${e.message}`, 'err'); warn++; }
+          }
+          if (photoLinks.length) audit.answers[qId].photos = photoLinks;
+        }
+        log(`  📸 ${ok} photos copiées${warn ? `, ${warn} introuvables` : ''}`, ok > 0 ? 'ok' : 'warn');
+      }
+
+      // Upload rapport.json
+      const rapport = {
+        id: audit.id, site: audit.site, grilleId: audit.grilleId,
+        grilleName: audit.grilleName || '', date: audit.date,
+        auditor: audit.auditor, status: audit.status,
+        answers: audit.answers || {},
+        stats: audit.stats || {conformity:0, majors:0, minors:0, concerns:0}
+      };
+      await uploadOrUpdate('rapport.json', JSON.stringify(rapport, null, 2), 'application/json', auditFolderId);
+
+      indexEntries.push({
+        id: audit.id, site: audit.site, grilleId: audit.grilleId,
+        grilleName: audit.grilleName || '', date: audit.date,
+        auditor: audit.auditor, status: audit.status,
+        driveFolderId: auditFolderId,
+        stats: audit.stats || {conformity:0, majors:0, minors:0, concerns:0}
+      });
     }
-    log(`\n✓ Import terminé ! ${done} audits importés sur Drive.`, 'ok');
-    log('\nTu peux fermer cette page et ouvrir l\'appli principale.', 'ok');
-    document.getElementById('btn-import').textContent = 'Import terminé ✓';
+
+    log('Upload audits_index.json…');
+    await uploadOrUpdate('audits_index.json', JSON.stringify(indexEntries, null, 2), 'application/json', FOLDER_ID);
+    log('✓ audits_index.json', 'ok');
+
+    setProgress(100);
+    log(`\n✅ Import terminé ! ${audits.length} audits importés avec leurs photos.`, 'ok');
+    log('Tu peux fermer cette page.', 'ok');
+    document.getElementById('btn').textContent = '✓ Terminé';
+
   } catch(e) {
-    log('Erreur: '+e.message, 'err');
-    document.getElementById('btn-import').disabled = false;
+    log('Erreur fatale: ' + e.message, 'err');
+    console.error(e);
+    document.getElementById('btn').disabled = false;
   }
 }
 
-async function getOrCreateFolder(name, parentId) {
-  const q = `name='${encodeURIComponent(name).replace(/'/g,"\\'")}' and mimeType='application/vnd.google-apps.folder' and '${parentId}' in parents and trashed=false`;
+// Parse /Pictures/{city}/{dateFolder}/{filename} and find on Drive
+async function findInPictures(picPath, cache) {
+  // Remove leading /Pictures/
+  const rel = picPath.replace(/^\/Pictures\//, '');
+  const parts = rel.split('/');
+  const filename = parts.pop();
+  const dateFolder = parts.pop();
+  const cityParts = parts; // may be multi-level e.g. ["Orléans"]
+
+  const cacheKey = cityParts.join('/') + '/' + dateFolder;
+  if (!cache[cacheKey]) {
+    let currentId = PICTURES_ID;
+    // Navigate city folders
+    for (const city of cityParts) {
+      const id = await findFolder(currentId, city);
+      if (!id) return null;
+      currentId = id;
+    }
+    // Navigate date folder (try exact, then partial)
+    const dateId = await findFolder(currentId, dateFolder);
+    if (!dateId) return null;
+    cache[cacheKey] = dateId;
+  }
+
+  const folderId = cache[cacheKey];
+  const q = `name='${filename.replace(/'/g,"\\'")}' and '${folderId}' in parents and trashed=false`;
   const res = await driveReq(`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id)&supportsAllDrives=true&includeItemsFromAllDrives=true`);
-  if (res.files?.length) return res.files[0].id;
+  return res.files?.[0]?.id || null;
+}
+
+async function findFolder(parentId, name) {
+  // Exact match
+  let q = `name='${name.replace(/'/g,"\\'")}' and '${parentId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`;
+  let res = await driveReq(`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id,name)&supportsAllDrives=true&includeItemsFromAllDrives=true`);
+  if (res.files?.[0]) return res.files[0].id;
+  // Partial match — list all subfolders and find closest
+  q = `'${parentId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`;
+  res = await driveReq(`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id,name)&supportsAllDrives=true&includeItemsFromAllDrives=true&pageSize=50`);
+  const norm = s => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+  const match = (res.files||[]).find(f => norm(f.name).includes(norm(name.substring(0,5))));
+  return match?.id || null;
+}
+
+async function copyFile(fileId, name, destId) {
+  const res = await driveReq(`https://www.googleapis.com/drive/v3/files/${fileId}/copy?supportsAllDrives=true`, 'POST', {name, parents:[destId]});
+  return res.id;
+}
+
+async function getOrCreateFolder(name, parentId) {
+  const q = `name='${name.replace(/'/g,"\\'")}' and mimeType='application/vnd.google-apps.folder' and '${parentId}' in parents and trashed=false`;
+  const res = await driveReq(`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id)&supportsAllDrives=true&includeItemsFromAllDrives=true`);
+  if (res.files?.[0]) return res.files[0].id;
   const f = await driveReq('https://www.googleapis.com/drive/v3/files?supportsAllDrives=true', 'POST', {name, mimeType:'application/vnd.google-apps.folder', parents:[parentId]});
   return f.id;
 }
@@ -111,16 +196,16 @@ async function getOrCreateFolder(name, parentId) {
 async function uploadOrUpdate(name, content, mimeType, parentId) {
   const q = `name='${name}' and '${parentId}' in parents and trashed=false`;
   const res = await driveReq(`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id)&supportsAllDrives=true&includeItemsFromAllDrives=true`);
-  if (res.files?.length) {
+  if (res.files?.[0]) {
     await fetch(`https://www.googleapis.com/upload/drive/v3/files/${res.files[0].id}?uploadType=media&supportsAllDrives=true`, {
-      method: 'PATCH', headers: {'Authorization':'Bearer '+accessToken, 'Content-Type': mimeType}, body: content
+      method:'PATCH', headers:{'Authorization':'Bearer '+accessToken,'Content-Type':mimeType}, body:content
     });
   } else {
     const base64 = btoa(unescape(encodeURIComponent(content)));
-    const boundary = 'import_b';
-    const body = `--${boundary}\r\nContent-Type: application/json\r\n\r\n${JSON.stringify({name,parents:[parentId]})}\r\n--${boundary}\r\nContent-Type: ${mimeType}\r\nContent-Transfer-Encoding: base64\r\n\r\n${base64}\r\n--${boundary}--`;
+    const b = 'ib';
+    const body = `--${b}\r\nContent-Type: application/json\r\n\r\n${JSON.stringify({name,parents:[parentId]})}\r\n--${b}\r\nContent-Type: ${mimeType}\r\nContent-Transfer-Encoding: base64\r\n\r\n${base64}\r\n--${b}--`;
     await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true', {
-      method: 'POST', headers: {'Authorization':'Bearer '+accessToken, 'Content-Type':`multipart/related; boundary=${boundary}`}, body
+      method:'POST', headers:{'Authorization':'Bearer '+accessToken,'Content-Type':`multipart/related; boundary=${b}`}, body
     });
   }
 }
@@ -129,7 +214,7 @@ async function driveReq(url, method='GET', body=null) {
   const opts = {method, headers:{'Authorization':'Bearer '+accessToken,'Content-Type':'application/json'}};
   if (body) opts.body = JSON.stringify(body);
   const r = await fetch(url, opts);
-  if (!r.ok) throw new Error('Drive '+r.status);
+  if (!r.ok) { const e = await r.json().catch(()=>({error:{message:r.status}})); throw new Error(e.error?.message||r.status); }
   return r.json();
 }
 </script>
