@@ -476,7 +476,8 @@ function handleToken(resp) {
   S.accessToken = resp.access_token;
   dbPut('settings', S.accessToken, 'token');
   resolveRole();
-  loadGrillesFromDrive().then(() => showHome());
+  updateSyncUI(null);
+  loadAllFromDrive().then(() => { updateSyncUI(true); showHome(); });
 }
 document.getElementById('btn-signin').onclick = () => {
   google.accounts.id.prompt(n => {
@@ -1198,6 +1199,7 @@ async function saveAndSync() {
   updateSyncUI(null);
   try {
     await uploadAuditToDrive(audit);
+    await saveAuditsIndex();
     audit.synced = true;
     dbPut('audits', audit);
     updateSyncUI(true);
@@ -1247,18 +1249,7 @@ async function syncGrillesToDrive() {
     }
   } catch(e) { console.error('Grilles sync error',e); }
 }
-async function loadGrillesFromDrive() {
-  if (!S.accessToken) return;
-  try {
-    const q = `name='grilles.json' and '${CONFIG.DRIVE_FOLDER_ID}' in parents and trashed=false`;
-    const res = await driveRequest(`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id)`);
-    if (!res.files?.length) return;
-    const r = await fetch(`https://www.googleapis.com/drive/v3/files/${res.files[0].id}?alt=media`, {headers:{'Authorization':'Bearer '+S.accessToken}});
-    const grilles = await r.json();
-    S.grilles = grilles;
-    for (const g of grilles) await dbPut('grilles', g);
-  } catch(e) { console.error('Load grilles error',e); }
-}
+// loadGrillesFromDrive is now handled by loadAllFromDrive above
 async function getOrCreateFolder(name, parentId) {
   const q = `name='${name}' and mimeType='application/vnd.google-apps.folder' and '${parentId}' in parents and trashed=false`;
   const res = await driveRequest(`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id)`);
@@ -1319,27 +1310,60 @@ function showToast(msg) {
 }
 
 // =====================================================
-// IMPORT HISTORICAL DATA
+// LOAD DATA FROM DRIVE
 // =====================================================
-async function importHistoricalData() {
+async function loadAllFromDrive() {
+  if (!S.accessToken) return;
   try {
-    const [grillesRes, auditsRes] = await Promise.all([
-      fetch('grilles_data.json'), fetch('audits_data.json')
-    ]);
-    const grilles = await grillesRes.json();
-    const audits = await auditsRes.json();
-    // Only import if DB is empty
-    const existing = await dbGetAll('grilles');
-    if (!existing.length) {
-      for (const g of grilles) await dbPut('grilles', g);
+    // Load grilles
+    const grilles = await loadJsonFromDrive('grilles.json');
+    if (grilles) {
       S.grilles = grilles;
+      for (const g of grilles) await dbPut('grilles', g);
     }
-    const existingAudits = await dbGetAll('audits');
-    if (!existingAudits.length) {
-      for (const a of audits) await dbPut('audits', a);
-      S.audits = audits;
+    // Load audits index
+    const audits = await loadJsonFromDrive('audits_index.json');
+    if (audits) {
+      // Merge with local — local takes priority for unsynced
+      const localUnsyncedIds = S.audits.filter(a => !a.synced).map(a => a.id);
+      const merged = [...audits.filter(a => !localUnsyncedIds.includes(a.id)), ...S.audits.filter(a => !a.synced)];
+      S.audits = merged;
+      for (const a of merged) await dbPut('audits', a);
     }
-  } catch(e) { console.log('No historical data to import',e); }
+  } catch(e) { console.error('loadAllFromDrive error', e); }
+}
+
+async function loadJsonFromDrive(filename) {
+  try {
+    const q = `name='${filename}' and '${CONFIG.DRIVE_FOLDER_ID}' in parents and trashed=false`;
+    const res = await driveRequest(`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id)`);
+    if (!res.files?.length) return null;
+    const r = await fetch(`https://www.googleapis.com/drive/v3/files/${res.files[0].id}?alt=media`, {
+      headers: {'Authorization': 'Bearer ' + S.accessToken}
+    });
+    return await r.json();
+  } catch(e) { return null; }
+}
+
+async function saveAuditsIndex() {
+  if (!S.accessToken) return;
+  try {
+    // Save a lightweight index (no photos — too heavy)
+    const index = S.audits.map(a => ({
+      ...a,
+      answers: Object.fromEntries(Object.entries(a.answers||{}).map(([k,v]) => [k, {...v, photos:[]}]))
+    }));
+    const data = JSON.stringify(index, null, 2);
+    const q = `name='audits_index.json' and '${CONFIG.DRIVE_FOLDER_ID}' in parents and trashed=false`;
+    const res = await driveRequest(`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id)`);
+    if (res.files?.length) {
+      await fetch(`https://www.googleapis.com/upload/drive/v3/files/${res.files[0].id}?uploadType=media`, {
+        method: 'PATCH', headers: {'Authorization': 'Bearer '+S.accessToken, 'Content-Type': 'application/json'}, body: data
+      });
+    } else {
+      await uploadFileToDrive('data:application/json;base64,'+btoa(unescape(encodeURIComponent(data))), 'audits_index.json', CONFIG.DRIVE_FOLDER_ID, 'application/json');
+    }
+  } catch(e) { console.error('saveAuditsIndex error', e); }
 }
 
 // =====================================================
@@ -1347,7 +1371,6 @@ async function importHistoricalData() {
 // =====================================================
 async function init() {
   await openDB();
-  await importHistoricalData();
   const [localAudits, localGrilles, savedUser, savedToken] = await Promise.all([
     dbGetAll('audits'), dbGetAll('grilles'), dbGet('settings','user'), dbGet('settings','token')
   ]);
@@ -1360,8 +1383,15 @@ async function init() {
   else { const sc=document.querySelector('script[src*="gsi"]'); if(sc) sc.onload=initAuth; }
 
   document.getElementById('loading').style.display = 'none';
-  if (S.user) { resolveRole(); showHome(); }
-  else showScreen('screen-signin');
+  if (S.user && S.accessToken) {
+    resolveRole();
+    updateSyncUI(null);
+    loadAllFromDrive().then(() => { updateSyncUI(true); showHome(); });
+  } else if (S.user) {
+    resolveRole(); showHome();
+  } else {
+    showScreen('screen-signin');
+  }
 }
 
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(()=>{});
