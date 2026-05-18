@@ -61,14 +61,17 @@ async function runImport() {
     await uploadOrUpdate('grilles.json', JSON.stringify(grilles, null, 2), 'application/json', FOLDER_ID);
     log('✓ grilles.json uploadé', 'ok');
 
-    // Build audits index (no photos)
-    log('Upload audits_index.json…');
-    const index = audits.map(a => ({
-      ...a,
-      answers: Object.fromEntries(Object.entries(a.answers||{}).map(([k,v]) => [k, {...v, photos:[]}]))
+    // Build audits index
+    log('Construction de l\'index des audits…');
+    const indexEntries = audits.map(a => ({
+      id: a.id, site: a.site,
+      grilleId: a.grilleId, grilleName: a.grilleName||a.grille||'',
+      date: a.date, auditor: a.auditor, status: a.status,
+      driveFolderId: null, // will be updated on next sync
+      stats: a.stats || {conformity:0, majors:0, minors:0, concerns:0}
     }));
-    await uploadOrUpdate('audits_index.json', JSON.stringify(index, null, 2), 'application/json', FOLDER_ID);
-    log('✓ audits_index.json uploadé', 'ok');
+    await uploadOrUpdate('audits_index.json', JSON.stringify(indexEntries, null, 2), 'application/json', FOLDER_ID);
+    log('✓ audits_index.json créé', 'ok');
 
     // Upload individual audit folders
     log(`\nCréation des dossiers d'audit…`);
