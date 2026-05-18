@@ -99,24 +99,24 @@ async function runImport() {
 
 async function getOrCreateFolder(name, parentId) {
   const q = `name='${encodeURIComponent(name).replace(/'/g,"\\'")}' and mimeType='application/vnd.google-apps.folder' and '${parentId}' in parents and trashed=false`;
-  const res = await driveReq(`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id)`);
+  const res = await driveReq(`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id)&supportsAllDrives=true&includeItemsFromAllDrives=true`);
   if (res.files?.length) return res.files[0].id;
-  const f = await driveReq('https://www.googleapis.com/drive/v3/files', 'POST', {name, mimeType:'application/vnd.google-apps.folder', parents:[parentId]});
+  const f = await driveReq('https://www.googleapis.com/drive/v3/files?supportsAllDrives=true', 'POST', {name, mimeType:'application/vnd.google-apps.folder', parents:[parentId]});
   return f.id;
 }
 
 async function uploadOrUpdate(name, content, mimeType, parentId) {
   const q = `name='${name}' and '${parentId}' in parents and trashed=false`;
-  const res = await driveReq(`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id)`);
+  const res = await driveReq(`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id)&supportsAllDrives=true&includeItemsFromAllDrives=true`);
   if (res.files?.length) {
-    await fetch(`https://www.googleapis.com/upload/drive/v3/files/${res.files[0].id}?uploadType=media`, {
+    await fetch(`https://www.googleapis.com/upload/drive/v3/files/${res.files[0].id}?uploadType=media&supportsAllDrives=true`, {
       method: 'PATCH', headers: {'Authorization':'Bearer '+accessToken, 'Content-Type': mimeType}, body: content
     });
   } else {
     const base64 = btoa(unescape(encodeURIComponent(content)));
     const boundary = 'import_b';
     const body = `--${boundary}\r\nContent-Type: application/json\r\n\r\n${JSON.stringify({name,parents:[parentId]})}\r\n--${boundary}\r\nContent-Type: ${mimeType}\r\nContent-Transfer-Encoding: base64\r\n\r\n${base64}\r\n--${boundary}--`;
-    await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
+    await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true', {
       method: 'POST', headers: {'Authorization':'Bearer '+accessToken, 'Content-Type':`multipart/related; boundary=${boundary}`}, body
     });
   }
