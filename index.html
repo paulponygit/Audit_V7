@@ -535,50 +535,65 @@ function renderHomeAuditList() {
   list.innerHTML = S.myAudits.map(a => renderAuditCard(a)).join('');
 }
 
-function renderAuditCard(a) {
-  const g = S.grilles.find(g => g.id === a.grilleId);
+function renderAuditCard(a, showDelete=false) {
+  const g = S.grilles.find(g => g.id === a.grilleId || g.name === (a.grilleName||a.grille));
   const totalQ = g ? g.sections.reduce((s,sec)=>s+sec.criteria.length,0) : 0;
   const answered = Object.values(a.answers||{}).filter(x=>x.val||(x.comment&&x.comment.length)||(x.photos?.length)).length;
-  const pct = totalQ ? Math.round(answered/totalQ*100) : 0;
-  const {conformity,majors,minors} = calcScore(a, g);
+  const compPct = totalQ ? Math.round(answered/totalQ*100) : 0;
+  const stats = a.stats || calcScore(a, g);
+  const {conformity, majors, minors} = stats;
   const dateStr = new Date(a.date).toLocaleDateString('fr-FR',{day:'numeric',month:'short',year:'numeric'});
-  let badge = a.status==='complete' ? `<span class="badge b-complete">✓ ${conformity}%</span>` :
-              !isTokenValid() ? `<span class="badge b-draft">Local</span>` :
-              `<span class="badge b-pending">En cours</span>`;
+  const auditorName = (a.auditor||'').split('@')[0];
+  const canDelete = S.role==='manager'||S.role==='admin' || (a.status!=='complete' && S.role==='user');
+  const deleteBtn = canDelete ? `<button onclick="event.stopPropagation();deleteAudit('${a.id}')" style="padding:4px 8px;background:var(--major-bg);border:.5px solid var(--major);border-radius:6px;color:var(--major);font-size:11px;cursor:pointer;font-family:'DM Sans',sans-serif;flex-shrink:0">Suppr.</button>` : '';
   return `<div class="card" onclick="openAudit('${a.id}')">
-    <div class="card-top">
-      <div><div class="card-title">${a.site}</div><div class="card-sub">${a.grilleName} · ${dateStr}</div></div>
-      ${badge}
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:10px">
+      <div style="min-width:0">
+        <div class="card-title">${a.site}</div>
+        <div class="card-sub">${a.grilleName||a.grille||'—'} · ${dateStr} · ${auditorName}</div>
+      </div>
+      <div style="display:flex;gap:6px;align-items:center;flex-shrink:0">
+        ${deleteBtn}
+        <span class="badge ${a.status==='complete'?'b-complete':'b-pending'}">${a.status==='complete'?'✓ Terminé':'En cours'}</span>
+      </div>
     </div>
-    <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
-    <div class="progress-label">${answered}/${totalQ} réponses · ${pct}%${majors>0?` · <span style="color:var(--major)">${majors} maj.</span>`:''}${minors>0?` · <span style="color:var(--minor)">${minors} min.</span>`:''}</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px">
+      <div style="background:var(--bg3);border-radius:8px;padding:8px 10px">
+        <div style="font-size:18px;font-weight:300;font-family:'DM Mono',monospace;color:var(--accent2)">${compPct}%</div>
+        <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-top:2px">Complétion</div>
+      </div>
+      <div style="background:var(--bg3);border-radius:8px;padding:8px 10px">
+        <div style="font-size:18px;font-weight:300;font-family:'DM Mono',monospace;color:var(--accent2)">${conformity}%</div>
+        <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-top:2px">Conformité</div>
+      </div>
+    </div>
+    <div style="display:flex;gap:6px">
+      ${majors>0?`<span class="badge b-major">${majors} maj.</span>`:''}
+      ${minors>0?`<span class="badge b-minor">${minors} min.</span>`:''}
+      ${!majors&&!minors?`<span style="font-size:11px;color:var(--good)">✓ Aucune non-conformité</span>`:''}
+    </div>
   </div>`;
 }
 
 // ===================================================
-// ALL AUDITS
+// ALL AUDITS — index-based, instant filtering
 // ===================================================
 async function showAllAudits() {
   showScreen('screen-all-audits');
   if (!S.allAudits.length) await refreshAllAudits();
-  else renderAllAuditsList();
+  else { populateFilterOptions(); renderAllAuditsList(); }
 }
 
 async function refreshAllAudits() {
   if (!isTokenValid()) { showToast('Reconnecte-toi d\'abord'); return; }
-  document.getElementById('all-audits-list').innerHTML = '<div class="empty"><div class="spinner" style="margin:0 auto"></div></div>';
+  document.getElementById('all-audits-list').innerHTML = '<div class="empty"><div class="spinner" style="margin:0 auto"></div><div style="margin-top:12px">Chargement de l\'index…</div></div>';
   try {
-    const folders = await listDriveFolders();
-    const audits = [];
-    // Load rapport.json from each folder (last 50)
-    const toLoad = folders.slice(0, 50);
-    for (const f of toLoad) {
-      try {
-        const rapport = await loadJsonFromFolder(f.id, 'rapport.json');
-        if (rapport) audits.push({...rapport, driveFolderId: f.id});
-      } catch(e) {}
+    const index = await loadJsonFromDrive('audits_index.json');
+    if (index) {
+      S.allAudits = index.sort((a,b) => new Date(b.date) - new Date(a.date));
+    } else {
+      S.allAudits = [];
     }
-    S.allAudits = audits.sort((a,b) => new Date(b.date) - new Date(a.date));
     populateFilterOptions();
     renderAllAuditsList();
   } catch(e) {
@@ -616,17 +631,11 @@ function renderAllAuditsList(filters={}) {
   if (filters.dateTo) audits = audits.filter(a => new Date(a.date) <= new Date(filters.dateTo));
   const list = document.getElementById('all-audits-list');
   if (!audits.length) { list.innerHTML = '<div class="empty">Aucun audit trouvé.</div>'; return; }
+  // Use renderAuditCard but override onclick to load from Drive
   list.innerHTML = audits.map(a => {
-    const g = S.grilles.find(g => g.id === a.grilleId || g.name === (a.grilleName||a.grille));
-    const {conformity} = calcScore(a, g);
-    const dateStr = new Date(a.date).toLocaleDateString('fr-FR',{day:'numeric',month:'short',year:'numeric'});
-    const badge = a.status==='complete' ? `<span class="badge b-complete">✓ ${conformity}%</span>` : `<span class="badge b-pending">En cours</span>`;
-    return `<div class="card" onclick="openAuditFromDrive('${a.driveFolderId}','${a.id}')">
-      <div class="card-top">
-        <div><div class="card-title">${a.site}</div><div class="card-sub">${a.grilleName||a.grille} · ${dateStr} · ${(a.auditor||'').split('@')[0]}</div></div>
-        ${badge}
-      </div>
-    </div>`;
+    const card = renderAuditCard(a);
+    // Replace onclick to use driveFolderId
+    return card.replace(`onclick="openAudit('${a.id}')"`  , `onclick="openAuditFromDrive('${a.driveFolderId}','${a.id}')"`);
   }).join('');
 }
 
@@ -637,32 +646,25 @@ function setFilter(val, el) {
 }
 
 // ===================================================
-// DRIVE — LOAD MY AUDITS (10 most recent)
+// DRIVE — LOAD MY AUDITS from index
 // ===================================================
 async function loadMyAudits() {
   if (!isTokenValid()) return;
   try {
-    const folders = await listDriveFolders();
-    const myFolders = folders.filter(f => f.name.toLowerCase().includes(''));
-    // Load rapport.json for each, filter by current user
-    const audits = [];
-    for (const f of myFolders.slice(0, 30)) {
-      try {
-        const r = await loadJsonFromFolder(f.id, 'rapport.json');
-        if (r && r.auditor === S.user?.email) audits.push({...r, driveFolderId: f.id});
-        if (audits.length >= 10) break;
-      } catch(e) {}
+    const index = await loadJsonFromDrive('audits_index.json');
+    if (index) {
+      S.allAudits = index.sort((a,b) => new Date(b.date) - new Date(a.date));
+      // My audits = 10 most recent by current user
+      S.myAudits = S.allAudits.filter(a => a.auditor === S.user?.email).slice(0, 10);
+      // Also include my pending audits from local cache not yet in index
+      const localAudits = await dbGetAll('audits');
+      const localPending = localAudits.filter(a => !a.synced && a.auditor === S.user?.email);
+      for (const a of localPending) {
+        if (!S.myAudits.find(x => x.id === a.id)) S.myAudits.unshift(a);
+      }
+      for (const a of S.myAudits) await dbPut('audits', a);
     }
-    S.myAudits = audits.sort((a,b) => new Date(b.date) - new Date(a.date)).slice(0,10);
-    // Cache locally
-    for (const a of S.myAudits) await dbPut('audits', a);
   } catch(e) { console.error('loadMyAudits', e); }
-}
-
-async function listDriveFolders() {
-  const q = `'${CONFIG.DRIVE_FOLDER_ID}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`;
-  const res = await driveRequest(`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id,name,createdTime)&orderBy=createdTime desc&pageSize=100`);
-  return res.files || [];
 }
 
 async function loadJsonFromFolder(folderId, filename) {
@@ -697,7 +699,7 @@ async function saveGrillesToDrive() {
   const q = `name='grilles.json' and '${CONFIG.DRIVE_FOLDER_ID}' in parents and trashed=false`;
   const res = await driveRequest(`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id)`);
   if (res.files?.length) {
-    await fetch(`https://www.googleapis.com/upload/drive/v3/files/${res.files[0].id}?uploadType=media`, {
+    await fetch(`https://www.googleapis.com/upload/drive/v3/files/${res.files[0].id}?uploadType=media&supportsAllDrives=true`, {
       method:'PATCH', headers:{'Authorization':'Bearer '+S.accessToken,'Content-Type':'application/json'}, body:data
     });
   } else {
@@ -1189,6 +1191,8 @@ async function syncAuditToDrive(audit) {
       answers:answersExport, stats:{conformity,majors,minors,concerns}
     };
     await uploadOrUpdateJson('rapport.json', rapport, folderId);
+    // Update audits_index.json
+    await updateAuditsIndex(audit, stats);
     await dbPut('audits', audit);
     updateSyncUI(true);
   } catch(e) {
@@ -1197,6 +1201,52 @@ async function syncAuditToDrive(audit) {
     else { showToast('Hors ligne — sauvegardé en local'); }
     updateSyncUI(false);
   }
+}
+
+// ===================================================
+// AUDITS INDEX — update on every sync
+// ===================================================
+async function updateAuditsIndex(audit, stats) {
+  const entry = {
+    id: audit.id, site: audit.site,
+    grilleId: audit.grilleId, grilleName: audit.grilleName||audit.grille||'',
+    date: audit.date, auditor: audit.auditor, status: audit.status,
+    driveFolderId: audit.driveFolderId,
+    stats: {conformity: stats.conformity, majors: stats.majors, minors: stats.minors, concerns: stats.concerns}
+  };
+  // Load current index
+  let index = await loadJsonFromDrive('audits_index.json') || [];
+  const idx = index.findIndex(a => a.id === audit.id);
+  if (idx >= 0) index[idx] = entry; else index.unshift(entry);
+  index = index.sort((a,b) => new Date(b.date) - new Date(a.date));
+  S.allAudits = index;
+  await uploadOrUpdateJson('audits_index.json', index, CONFIG.DRIVE_FOLDER_ID);
+}
+
+// ===================================================
+// DELETE AUDIT
+// ===================================================
+async function deleteAudit(auditId) {
+  const audit = S.myAudits.find(a=>a.id===auditId) || S.allAudits.find(a=>a.id===auditId);
+  if (!audit) return;
+  const isComplete = audit.status === 'complete';
+  if (isComplete && S.role === 'user') { showToast('Seul un manager peut supprimer un audit envoyé'); return; }
+  const label = isComplete ? `Supprimer l'audit terminé "${audit.site}" ?` : `Supprimer l'audit "${audit.site}" ?`;
+  if (!confirm(label)) return;
+  // Remove from local
+  S.myAudits = S.myAudits.filter(a => a.id !== auditId);
+  S.allAudits = S.allAudits.filter(a => a.id !== auditId);
+  await dbDelete('audits', auditId);
+  // Remove from Drive
+  if (isTokenValid() && audit.driveFolderId) {
+    try {
+      await driveRequest(`https://www.googleapis.com/drive/v3/files/${audit.driveFolderId}`, 'DELETE');
+      await uploadOrUpdateJson('audits_index.json', S.allAudits, CONFIG.DRIVE_FOLDER_ID);
+      showToast('Audit supprimé ✓');
+    } catch(e) { showToast('Supprimé en local — erreur Drive'); }
+  } else { showToast('Supprimé en local'); }
+  renderHomeAuditList();
+  renderAllAuditsList();
 }
 
 // ===================================================
