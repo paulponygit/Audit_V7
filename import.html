@@ -35,7 +35,7 @@ function startImport() {
   document.getElementById('btn-import').disabled = true;
   const tokenClient = google.accounts.oauth2.initTokenClient({
     client_id: CLIENT_ID,
-    scope: 'https://www.googleapis.com/auth/drive.file',
+    scope: 'https://www.googleapis.com/auth/drive',
     callback: async (resp) => {
       if (resp.error) { log('Erreur auth: '+resp.error, 'err'); return; }
       accessToken = resp.access_token;
