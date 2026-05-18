@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Import données historiques → Drive</title>
+  <style>
+    body { font-family: monospace; background: #0f0f0f; color: #e0e0e0; padding: 40px; max-width: 600px; margin: 0 auto; }
+    h1 { font-size: 18px; font-weight: 400; margin-bottom: 24px; color: #c8b090; }
+    .log { background: #1a1a1a; border: 0.5px solid #333; border-radius: 8px; padding: 16px; min-height: 300px; font-size: 12px; line-height: 1.8; overflow-y: auto; max-height: 500px; }
+    .ok { color: #1a9e5c; }
+    .err { color: #d94040; }
+    .info { color: #888; }
+    button { margin-top: 20px; background: #e8ddd0; color: #0f0f0f; border: none; border-radius: 8px; padding: 12px 24px; font-size: 14px; font-weight: 500; cursor: pointer; font-family: monospace; }
+    button:disabled { opacity: 0.4; cursor: not-allowed; }
+  </style>
+</head>
+<body>
+<h1>Import données historiques → Drive</h1>
+<div class="log" id="log">En attente…</div>
+<button id="btn-import" onclick="startImport()">Se connecter et importer</button>
+
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script>
+const CLIENT_ID = '798980765725-mah2f7vh8bgohaeesbq7mlauhr9l3tba.apps.googleusercontent.com';
+const FOLDER_ID = '171pYo5m2xodVxGZxR_a88YU0LmK726vz';
+let accessToken = null;
+
+function log(msg, type='info') {
+  const el = document.getElementById('log');
+  el.innerHTML += `<div class="${type}">${msg}</div>`;
+  el.scrollTop = el.scrollHeight;
+}
+
+function startImport() {
+  document.getElementById('btn-import').disabled = true;
+  const tokenClient = google.accounts.oauth2.initTokenClient({
+    client_id: CLIENT_ID,
+    scope: 'https://www.googleapis.com/auth/drive.file',
+    callback: async (resp) => {
+      if (resp.error) { log('Erreur auth: '+resp.error, 'err'); return; }
+      accessToken = resp.access_token;
+      log('✓ Connecté à Google Drive', 'ok');
+      await runImport();
+    }
+  });
+  tokenClient.requestAccessToken({prompt: 'consent'});
+}
+
+async function runImport() {
+  try {
+    log('Chargement des données historiques…');
+    const [grillesRes, auditsRes] = await Promise.all([
+      fetch('grilles_data.json'), fetch('audits_data.json')
+    ]);
+    const grilles = await grillesRes.json();
+    const audits = await auditsRes.json();
+    log(`→ ${grilles.length} grilles, ${audits.length} audits à importer`);
+
+    // Upload grilles.json
+    log('Upload grilles.json…');
+    await uploadOrUpdate('grilles.json', JSON.stringify(grilles, null, 2), 'application/json', FOLDER_ID);
+    log('✓ grilles.json uploadé', 'ok');
+
+    // Build audits index (no photos)
+    log('Upload audits_index.json…');
+    const index = audits.map(a => ({
+      ...a,
+      answers: Object.fromEntries(Object.entries(a.answers||{}).map(([k,v]) => [k, {...v, photos:[]}]))
+    }));
+    await uploadOrUpdate('audits_index.json', JSON.stringify(index, null, 2), 'application/json', FOLDER_ID);
+    log('✓ audits_index.json uploadé', 'ok');
+
+    // Upload individual audit folders
+    log(`\nCréation des dossiers d'audit…`);
+    let done = 0;
+    for (const audit of audits) {
+      if (!audit.site || !audit.date) continue;
+      const folderName = `${audit.site} — ${new Date(audit.date).toLocaleDateString('fr-FR')}`;
+      try {
+        const folderId = await getOrCreateFolder(folderName, FOLDER_ID);
+        const summary = {
+          id: audit.id, site: audit.site, grille: audit.grilleName,
+          date: new Date(audit.date).toISOString(), auditor: audit.auditor,
+          status: audit.status, answers: audit.answers, historical: true
+        };
+        await uploadOrUpdate('rapport.json', JSON.stringify(summary, null, 2), 'application/json', folderId);
+        done++;
+        if (done % 5 === 0) log(`→ ${done}/${audits.length} audits…`);
+      } catch(e) { log(`⚠ Erreur audit ${audit.id}: ${e.message}`, 'err'); }
+    }
+    log(`\n✓ Import terminé ! ${done} audits importés sur Drive.`, 'ok');
+    log('\nTu peux fermer cette page et ouvrir l\'appli principale.', 'ok');
+    document.getElementById('btn-import').textContent = 'Import terminé ✓';
+  } catch(e) {
+    log('Erreur: '+e.message, 'err');
+    document.getElementById('btn-import').disabled = false;
+  }
+}
+
+async function getOrCreateFolder(name, parentId) {
+  const q = `name='${encodeURIComponent(name).replace(/'/g,"\\'")}' and mimeType='application/vnd.google-apps.folder' and '${parentId}' in parents and trashed=false`;
+  const res = await driveReq(`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id)`);
+  if (res.files?.length) return res.files[0].id;
+  const f = await driveReq('https://www.googleapis.com/drive/v3/files', 'POST', {name, mimeType:'application/vnd.google-apps.folder', parents:[parentId]});
+  return f.id;
+}
+
+async function uploadOrUpdate(name, content, mimeType, parentId) {
+  const q = `name='${name}' and '${parentId}' in parents and trashed=false`;
+  const res = await driveReq(`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id)`);
+  if (res.files?.length) {
+    await fetch(`https://www.googleapis.com/upload/drive/v3/files/${res.files[0].id}?uploadType=media`, {
+      method: 'PATCH', headers: {'Authorization':'Bearer '+accessToken, 'Content-Type': mimeType}, body: content
+    });
+  } else {
+    const base64 = btoa(unescape(encodeURIComponent(content)));
+    const boundary = 'import_b';
+    const body = `--${boundary}\r\nContent-Type: application/json\r\n\r\n${JSON.stringify({name,parents:[parentId]})}\r\n--${boundary}\r\nContent-Type: ${mimeType}\r\nContent-Transfer-Encoding: base64\r\n\r\n${base64}\r\n--${boundary}--`;
+    await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
+      method: 'POST', headers: {'Authorization':'Bearer '+accessToken, 'Content-Type':`multipart/related; boundary=${boundary}`}, body
+    });
+  }
+}
+
+async function driveReq(url, method='GET', body=null) {
+  const opts = {method, headers:{'Authorization':'Bearer '+accessToken,'Content-Type':'application/json'}};
+  if (body) opts.body = JSON.stringify(body);
+  const r = await fetch(url, opts);
+  if (!r.ok) throw new Error('Drive '+r.status);
+  return r.json();
+}
+</script>
+</body>
+</html>
