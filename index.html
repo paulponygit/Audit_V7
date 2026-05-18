@@ -370,7 +370,7 @@
 const CONFIG = {
   CLIENT_ID: '798980765725-mah2f7vh8bgohaeesbq7mlauhr9l3tba.apps.googleusercontent.com',
   DRIVE_FOLDER_ID: '171pYo5m2xodVxGZxR_a88YU0LmK726vz',
-  SCOPES: 'https://www.googleapis.com/auth/drive.file',
+  SCOPES: 'https://www.googleapis.com/auth/drive',
   TOKEN_TTL_MS: 55 * 60 * 1000 // 55 min
 };
 
@@ -1233,7 +1233,7 @@ async function uploadOrUpdateJson(name, data, parentId) {
   const q = `name='${name}' and '${parentId}' in parents and trashed=false`;
   const res = await driveRequest(`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id)`);
   if (res.files?.length) {
-    await fetch(`https://www.googleapis.com/upload/drive/v3/files/${res.files[0].id}?uploadType=media`, {
+    await fetch(`https://www.googleapis.com/upload/drive/v3/files/${res.files[0].id}?uploadType=media&supportsAllDrives=true`, {
       method:'PATCH', headers:{'Authorization':'Bearer '+S.accessToken,'Content-Type':'application/json'}, body:content
     });
   } else { await uploadFileToDrive(toDataURL(content,'application/json'), name, parentId, 'application/json'); }
@@ -1242,16 +1242,19 @@ async function uploadFileToDrive(dataURL, name, parentId, mimeType) {
   const base64 = dataURL.split(',')[1];
   const boundary = 'pb';
   const body = `--${boundary}\r\nContent-Type: application/json\r\n\r\n${JSON.stringify({name,parents:[parentId]})}\r\n--${boundary}\r\nContent-Type: ${mimeType}\r\nContent-Transfer-Encoding: base64\r\n\r\n${base64}\r\n--${boundary}--`;
-  const r = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
+  const r = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true', {
     method:'POST', headers:{'Authorization':'Bearer '+S.accessToken,'Content-Type':`multipart/related; boundary=${boundary}`}, body
   });
   if (!r.ok) throw new Error('Upload '+r.status);
   return r.json();
 }
 async function driveRequest(url, method='GET', body=null) {
+  // Add supportsAllDrives for Shared Drive support
+  const sep = url.includes('?') ? '&' : '?';
+  const fullUrl = url + sep + 'supportsAllDrives=true&includeItemsFromAllDrives=true';
   const opts = {method, headers:{'Authorization':'Bearer '+S.accessToken,'Content-Type':'application/json'}};
   if (body) opts.body = JSON.stringify(body);
-  const r = await fetch(url, opts);
+  const r = await fetch(fullUrl, opts);
   if (!r.ok) throw new Error('Drive '+r.status);
   return r.json();
 }
