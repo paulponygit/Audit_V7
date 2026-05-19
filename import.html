@@ -162,22 +162,37 @@ async function findInPictures(picPath, cache) {
   }
 
   const folderId = cache[cacheKey];
-  const q = `name='${filename.replace(/'/g,"\\'")}' and '${folderId}' in parents and trashed=false`;
-  const res = await driveReq(`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id)&supportsAllDrives=true&includeItemsFromAllDrives=true`);
-  return res.files?.[0]?.id || null;
+  // List all files in folder and match by name in JS
+  const q = `'${folderId}' in parents and trashed=false and mimeType!='application/vnd.google-apps.folder'`;
+  const res = await driveReq(`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id,name)&supportsAllDrives=true&includeItemsFromAllDrives=true&pageSize=200`);
+  const files = res.files || [];
+  // Exact match
+  const exact = files.find(f => f.name === filename);
+  if (exact) return exact.id;
+  // Normalized match
+  const norm = s => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+  const match = files.find(f => norm(f.name) === norm(filename));
+  return match?.id || null;
 }
 
 async function findFolder(parentId, name) {
-  // Exact match
-  let q = `name='${name.replace(/'/g,"\\'")}' and '${parentId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`;
-  let res = await driveReq(`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id,name)&supportsAllDrives=true&includeItemsFromAllDrives=true`);
-  if (res.files?.[0]) return res.files[0].id;
-  // Partial match — list all subfolders and find closest
-  q = `'${parentId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`;
-  res = await driveReq(`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id,name)&supportsAllDrives=true&includeItemsFromAllDrives=true&pageSize=50`);
-  const norm = s => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
-  const match = (res.files||[]).find(f => norm(f.name).includes(norm(name.substring(0,5))));
-  return match?.id || null;
+  // List ALL subfolders and match in JS — avoids Drive API issues with special chars
+  const q = `'${parentId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`;
+  const res = await driveReq(`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id,name)&supportsAllDrives=true&includeItemsFromAllDrives=true&pageSize=50`);
+  const folders = res.files || [];
+  const norm = s => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]/g,' ').trim();
+  // Exact match first
+  const exact = folders.find(f => f.name === name);
+  if (exact) return exact.id;
+  // Normalized match
+  const normName = norm(name);
+  const normalized = folders.find(f => norm(f.name) === normName);
+  if (normalized) return normalized.id;
+  // Partial match on first meaningful words
+  const firstWords = normName.split(' ').filter(w => w.length > 2).slice(0, 3).join(' ');
+  const partial = folders.find(f => norm(f.name).includes(firstWords));
+  if (partial) return partial.id;
+  return null;
 }
 
 async function copyFile(fileId, name, destId) {
