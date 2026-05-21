@@ -68,14 +68,25 @@ async function runImport() {
     const indexEntries = [];
     let done = 0;
 
+    // Track folder names per city to handle duplicates
+    const folderNameCount = {};
+
     for (const audit of audits) {
       done++;
       setProgress(Math.round(done / audits.length * 90));
       const dateStr = new Date(audit.date).toLocaleDateString('fr-FR');
-      const folderName = `${audit.site} — ${dateStr} — ${audit.id}`;
       log(`[${done}/${audits.length}] ${audit.site} · ${audit.grilleName}`);
 
-      const auditFolderId = await getOrCreateFolder(folderName, FOLDER_ID);
+      // Create city folder
+      const cityFolderId = await getOrCreateFolder(audit.site, FOLDER_ID);
+
+      // Create Type - Date folder (with dedup suffix if needed)
+      const baseName = `${audit.grilleName} - ${dateStr}`;
+      const nameKey = audit.site + '/' + baseName;
+      folderNameCount[nameKey] = (folderNameCount[nameKey] || 0) + 1;
+      const folderName = folderNameCount[nameKey] > 1 ? `${baseName} (${folderNameCount[nameKey]})` : baseName;
+
+      const auditFolderId = await getOrCreateFolder(folderName, cityFolderId);
       audit.driveFolderId = auditFolderId;
 
       // Map photos
