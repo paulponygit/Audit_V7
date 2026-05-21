@@ -140,38 +140,39 @@ async function runImport() {
   }
 }
 
-// Parse /Pictures/{city}/{dateFolder}/{filename} and find on Drive
+// Parse /Pictures/{city}/{...folders}/{filename} and find on Drive
 async function findInPictures(picPath, cache) {
-  // Remove leading /Pictures/
   const rel = picPath.replace(/^\/Pictures\//, '');
   const parts = rel.split('/');
   const filename = parts.pop();
-  const dateFolder = parts.pop();
-  const cityParts = parts; // may be multi-level e.g. ["Orléans"]
+  // City is always first part
+  const city = parts[0];
+  // Everything between city and filename is the folder path
+  const dateParts = parts.slice(1);
 
-  const cacheKey = cityParts.join('/') + '|||' + dateFolder;
+  const cacheKey = city + '|||' + dateParts.join('/');
   if (cache[cacheKey] === undefined) {
-    let currentId = PICTURES_ID;
-    for (const city of cityParts) {
-      const id = await findFolder(currentId, city);
+    // Find city folder
+    const cityId = await findFolder(PICTURES_ID, city);
+    if (!cityId) { cache[cacheKey] = null; return null; }
+    // Navigate all date sub-folders
+    let currentId = cityId;
+    for (const part of dateParts) {
+      const id = await findFolder(currentId, part);
       if (!id) { cache[cacheKey] = null; return null; }
       currentId = id;
     }
-    const dateId = await findFolder(currentId, dateFolder);
-    cache[cacheKey] = dateId || null;
+    cache[cacheKey] = currentId;
   }
   if (!cache[cacheKey]) return null;
 
   const folderId = cache[cacheKey];
-  // List all files in folder and match by name in JS
   const q = `'${folderId}' in parents and trashed=false and mimeType!='application/vnd.google-apps.folder'`;
   const res = await driveReq(`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id,name)&supportsAllDrives=true&includeItemsFromAllDrives=true&pageSize=200`);
   const files = res.files || [];
-  // Exact match
+  const norm = s => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
   const exact = files.find(f => f.name === filename);
   if (exact) return exact.id;
-  // Normalized match
-  const norm = s => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
   const match = files.find(f => norm(f.name) === norm(filename));
   return match?.id || null;
 }
