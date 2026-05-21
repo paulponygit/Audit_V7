@@ -149,20 +149,18 @@ async function findInPictures(picPath, cache) {
   const dateFolder = parts.pop();
   const cityParts = parts; // may be multi-level e.g. ["Orléans"]
 
-  const cacheKey = cityParts.join('/') + '/' + dateFolder;
-  if (!cache[cacheKey]) {
+  const cacheKey = cityParts.join('/') + '|||' + dateFolder;
+  if (cache[cacheKey] === undefined) {
     let currentId = PICTURES_ID;
-    // Navigate city folders
     for (const city of cityParts) {
       const id = await findFolder(currentId, city);
-      if (!id) return null;
+      if (!id) { cache[cacheKey] = null; return null; }
       currentId = id;
     }
-    // Navigate date folder (try exact, then partial)
     const dateId = await findFolder(currentId, dateFolder);
-    if (!dateId) return null;
-    cache[cacheKey] = dateId;
+    cache[cacheKey] = dateId || null;
   }
+  if (!cache[cacheKey]) return null;
 
   const folderId = cache[cacheKey];
   // List all files in folder and match by name in JS
@@ -182,17 +180,23 @@ async function findFolder(parentId, name) {
   const q = `'${parentId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`;
   const res = await driveReq(`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id,name)&supportsAllDrives=true&includeItemsFromAllDrives=true&pageSize=50`);
   const folders = res.files || [];
-  const norm = s => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]/g,' ').trim();
+  // 1. Exact match
   const exact = folders.find(f => f.name === name);
   if (exact) return exact.id;
+  // 2. Case-insensitive exact match (preserving accents)
+  const lower = name.toLowerCase();
+  const caseMatch = folders.find(f => f.name.toLowerCase() === lower);
+  if (caseMatch) return caseMatch.id;
+  // 3. Normalized match (strip accents) — but only if no accent-preserving match found
+  const norm = s => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]/g,' ').trim();
   const normName = norm(name);
   const normalized = folders.find(f => norm(f.name) === normName);
   if (normalized) return normalized.id;
+  // 4. Partial match on first meaningful words
   const firstWords = normName.split(' ').filter(w => w.length > 2).slice(0, 3).join(' ');
   const partial = folders.find(f => norm(f.name).includes(firstWords));
   if (partial) return partial.id;
-  // Debug: log available folders when not found
-  log(`  🔍 Dossier "${name}" introuvable. Dossiers dispo: ${folders.map(f=>f.name).join(' | ')}`, 'warn');
+  log(`  🔍 Dossier "${name}" introuvable. Dispo: ${folders.map(f=>f.name).join(' | ')}`, 'warn');
   return null;
 }
 
