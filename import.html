@@ -112,6 +112,9 @@ async function runImport() {
       };
       await uploadOrUpdate('rapport.json', JSON.stringify(rapport, null, 2), 'application/json', auditFolderId);
 
+      // Avoid Drive API rate limit
+      await new Promise(r => setTimeout(r, 800));
+
       indexEntries.push({
         id: audit.id, site: audit.site, grilleId: audit.grilleId,
         grilleName: audit.grilleName || '', date: audit.date,
@@ -176,22 +179,20 @@ async function findInPictures(picPath, cache) {
 }
 
 async function findFolder(parentId, name) {
-  // List ALL subfolders and match in JS — avoids Drive API issues with special chars
   const q = `'${parentId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`;
   const res = await driveReq(`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id,name)&supportsAllDrives=true&includeItemsFromAllDrives=true&pageSize=50`);
   const folders = res.files || [];
   const norm = s => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]/g,' ').trim();
-  // Exact match first
   const exact = folders.find(f => f.name === name);
   if (exact) return exact.id;
-  // Normalized match
   const normName = norm(name);
   const normalized = folders.find(f => norm(f.name) === normName);
   if (normalized) return normalized.id;
-  // Partial match on first meaningful words
   const firstWords = normName.split(' ').filter(w => w.length > 2).slice(0, 3).join(' ');
   const partial = folders.find(f => norm(f.name).includes(firstWords));
   if (partial) return partial.id;
+  // Debug: log available folders when not found
+  log(`  🔍 Dossier "${name}" introuvable. Dossiers dispo: ${folders.map(f=>f.name).join(' | ')}`, 'warn');
   return null;
 }
 
