@@ -1161,8 +1161,14 @@ async function syncAuditToDrive(audit) {
   try {
     updateSyncUI(null);
     // Get or create folder
-    const folderName = `${audit.site} — ${new Date(audit.date).toLocaleDateString('fr-FR')} — ${audit.id}`;
-    const folderId = audit.driveFolderId || await getOrCreateFolder(folderName, CONFIG.DRIVE_FOLDER_ID);
+    const dateStr = new Date(audit.date).toLocaleDateString('fr-FR');
+    const cityFolderId = await getOrCreateFolder(audit.site, CONFIG.DRIVE_FOLDER_ID);
+    const auditFolderBase = `${audit.grilleName} - ${dateStr}`;
+    // Check for existing folders with same name to handle duplicates
+    const existing = await listFolderChildren(cityFolderId);
+    const sameNameCount = existing.filter(f => f.name === auditFolderBase || f.name.startsWith(auditFolderBase + ' (')).length;
+    const auditFolderName = sameNameCount > 0 ? `${auditFolderBase} (${sameNameCount + 1})` : auditFolderBase;
+    const folderId = audit.driveFolderId || await getOrCreateFolder(auditFolderName, cityFolderId);
     audit.driveFolderId = folderId;
     // Upload photos, replace dataURLs with filenames
     const answersExport = {};
@@ -1271,6 +1277,11 @@ function calcScore(audit, grille) {
 // ===================================================
 // DRIVE UTILS
 // ===================================================
+async function listFolderChildren(folderId) {
+  const q = `'${folderId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`;
+  const res = await driveRequest(`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id,name)&pageSize=50`);
+  return res.files || [];
+}
 async function getOrCreateFolder(name, parentId) {
   const q = `name='${name.replace(/'/g,"\\'")}' and mimeType='application/vnd.google-apps.folder' and '${parentId}' in parents and trashed=false`;
   const res = await driveRequest(`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id)`);
