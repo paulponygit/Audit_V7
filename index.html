@@ -1181,18 +1181,17 @@ async function submitAudit(audit, grille) {
 // ===================================================
 // DRIVE SYNC (per-audit)
 // ===================================================
+let _syncing = false;
 async function syncAuditToDrive(audit) {
   if (!isTokenValid()) { updateSyncUI(false); return; }
+  if (_syncing) return;
+  _syncing = true;
   try {
     updateSyncUI(null);
     // Get or create folder
     const dateStr = new Date(audit.date).toLocaleDateString('fr-FR');
     const cityFolderId = await getOrCreateFolder(audit.site, CONFIG.DRIVE_FOLDER_ID);
-    const auditFolderBase = `${audit.grilleName} - ${dateStr}`;
-    // Check for existing folders with same name to handle duplicates
-    const existing = await listFolderChildren(cityFolderId);
-    const sameNameCount = existing.filter(f => f.name === auditFolderBase || f.name.startsWith(auditFolderBase + ' (')).length;
-    const auditFolderName = sameNameCount > 0 ? `${auditFolderBase} (${sameNameCount + 1})` : auditFolderBase;
+    const auditFolderName = `${audit.grilleName} - ${dateStr}`;
     const folderId = audit.driveFolderId || await getOrCreateFolder(auditFolderName, cityFolderId);
     audit.driveFolderId = folderId;
     // Upload photos, replace dataURLs with filenames
@@ -1231,6 +1230,8 @@ async function syncAuditToDrive(audit) {
     if (e.message?.includes('403')) { showToast('⚠ Accès Drive refusé — contacte ton admin'); }
     else { showToast('Hors ligne — sauvegardé en local'); }
     updateSyncUI(false);
+  } finally {
+    _syncing = false;
   }
 }
 
@@ -1336,25 +1337,18 @@ async function uploadOrUpdateJson(name, data, parentId) {
     });
   } else {
     const bnd = 'xb_' + Date.now();
+    const CRLF = String.fromCharCode(13,10);
     const meta = JSON.stringify({name, parents:[parentId], mimeType:'application/json'});
-    const bodyBlob = new Blob([
-      `--${bnd}
-Content-Type: application/json; charset=UTF-8
-
-${meta}
-`,
-      `--${bnd}
-Content-Type: application/json
-
-`,
-      content,
-      `
---${bnd}--`
-    ]);
-    const r = await fetch(`https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true`, {
-      method:'POST', headers:{'Authorization':'Bearer '+S.accessToken,'Content-Type':`multipart/related; boundary=${bnd}`}, body:bodyBlob
+    const parts = [
+      '--' + bnd + CRLF + 'Content-Type: application/json; charset=UTF-8' + CRLF + CRLF + meta + CRLF,
+      '--' + bnd + CRLF + 'Content-Type: application/json' + CRLF + CRLF + content + CRLF,
+      '--' + bnd + '--'
+    ];
+    const bodyBlob = new Blob(parts, {type: 'multipart/related; boundary=' + bnd});
+    const r = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true', {
+      method:'POST', headers:{'Authorization':'Bearer '+S.accessToken,'Content-Type':'multipart/related; boundary='+bnd}, body:bodyBlob
     });
-    if (!r.ok) throw new Error('Upload '+r.status);
+    if (!r.ok) { const t=await r.text(); throw new Error('Upload '+r.status+': '+t.slice(0,200)); }
   }
 }
 async function uploadFileToDrive(dataURL, name, parentId, mimeType) {
