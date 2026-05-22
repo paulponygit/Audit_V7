@@ -465,9 +465,16 @@ function startTokenExpireWatcher() {
 }
 
 document.getElementById('btn-signin').onclick = () => {
-  // On mobile, popup must be triggered directly from user interaction (no async wrapper)
-  // Skip google.accounts.id.prompt() which doesn't work reliably on mobile
-  tokenClient.requestAccessToken({prompt:'select_account'});
+  // Try One Tap first; if unavailable (mobile/blocked), fall back to direct OAuth popup
+  try {
+    google.accounts.id.prompt(n => {
+      if (n.isNotDisplayed() || n.isSkippedMoment() || n.getMomentType() === 'skipped') {
+        tokenClient.requestAccessToken({prompt:'consent'});
+      }
+    });
+  } catch(e) {
+    tokenClient.requestAccessToken({prompt:'consent'});
+  }
 };
 document.getElementById('btn-signout').onclick = () => {
   if (S.accessToken) google.accounts.oauth2.revoke(S.accessToken, ()=>{});
@@ -671,9 +678,10 @@ async function loadJsonFromFolder(folderId, filename) {
   const q = `name='${filename}' and '${folderId}' in parents and trashed=false`;
   const res = await driveRequest(`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id)`);
   if (!res.files?.length) return null;
-  const r = await fetch(`https://www.googleapis.com/drive/v3/files/${res.files[0].id}?alt=media`, {
+  const r = await fetch(`https://www.googleapis.com/drive/v3/files/${res.files[0].id}?alt=media&supportsAllDrives=true`, {
     headers: {'Authorization': 'Bearer ' + S.accessToken}
   });
+  if (!r.ok) throw new Error('media '+r.status);
   return await r.json();
 }
 
@@ -690,9 +698,13 @@ async function loadJsonFromDrive(filename) {
     const q = `name='${filename}' and '${CONFIG.DRIVE_FOLDER_ID}' in parents and trashed=false`;
     const res = await driveRequest(`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id)`);
     if (!res.files?.length) return null;
-    const r = await fetch(`https://www.googleapis.com/drive/v3/files/${res.files[0].id}?alt=media`, {headers:{'Authorization':'Bearer '+S.accessToken}});
+    // supportsAllDrives required for Shared Drive media download
+    const r = await fetch(`https://www.googleapis.com/drive/v3/files/${res.files[0].id}?alt=media&supportsAllDrives=true`, {
+      headers:{'Authorization':'Bearer '+S.accessToken}
+    });
+    if (!r.ok) throw new Error('media '+r.status);
     return await r.json();
-  } catch(e) { return null; }
+  } catch(e) { console.error('loadJsonFromDrive', filename, e); return null; }
 }
 async function saveGrillesToDrive() {
   const data = JSON.stringify(S.grilles, null, 2);
@@ -1247,9 +1259,15 @@ async function deleteAudit(auditId) {
   if (isTokenValid() && audit.driveFolderId) {
     try {
       await driveRequest(`https://www.googleapis.com/drive/v3/files/${audit.driveFolderId}`, 'DELETE');
-      await uploadOrUpdateJson('audits_index.json', S.allAudits, CONFIG.DRIVE_FOLDER_ID);
-      showToast('Audit supprimé ✓');
-    } catch(e) { showToast('Supprimé en local — erreur Drive'); }
+    } catch(e) {
+      if (!e.message.includes('404')) {
+        showToast('Supprimé en local — erreur Drive');
+        renderHomeAuditList(); renderAllAuditsList(); return;
+      }
+      // 404 = dossier déjà absent, on continue proprement
+    }
+    try { await uploadOrUpdateJson('audits_index.json', S.allAudits, CONFIG.DRIVE_FOLDER_ID); } catch(e) {}
+    showToast('Audit supprimé ✓');
   } else { showToast('Supprimé en local'); }
   renderHomeAuditList();
   renderAllAuditsList();
@@ -1317,6 +1335,8 @@ async function driveRequest(url, method='GET', body=null) {
   if (body) opts.body = JSON.stringify(body);
   const r = await fetch(fullUrl, opts);
   if (!r.ok) throw new Error('Drive '+r.status);
+  // DELETE returns 204 No Content — no JSON body
+  if (r.status === 204 || method === 'DELETE') return {};
   return r.json();
 }
 function toDataURL(content, mimeType) { return `data:${mimeType};base64,`+btoa(unescape(encodeURIComponent(content))); }
