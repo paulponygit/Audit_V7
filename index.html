@@ -1214,12 +1214,12 @@ async function syncAuditToDrive(audit) {
       }
       answersExport[cId] = {...ans, photos:photoNames, resolved:ans.resolved?{...ans.resolved,photos:resPhotos}:null};
     }
-    const {conformity,majors,minors,concerns} = calcScore(audit, S.grilles.find(g=>g.id===audit.grilleId||g.name===(audit.grilleName||audit.grille)));
+    const stats = calcScore(audit, S.grilles.find(g=>g.id===audit.grilleId||g.name===(audit.grilleName||audit.grille)));
     const rapport = {
       id:audit.id, site:audit.site, grilleId:audit.grilleId,
       grilleName:audit.grilleName||audit.grille||'',
       date:audit.date, auditor:audit.auditor, status:audit.status,
-      answers:answersExport, stats:{conformity,majors,minors,concerns}
+      answers:answersExport, stats
     };
     await uploadOrUpdateJson('rapport.json', rapport, folderId);
     // Update audits_index.json
@@ -1269,18 +1269,24 @@ async function deleteAudit(auditId) {
   S.allAudits = S.allAudits.filter(a => a.id !== auditId);
   await dbDelete('audits', auditId);
   // Remove from Drive
-  if (isTokenValid() && audit.driveFolderId) {
+  if (isTokenValid()) {
     try {
-      await driveRequest(`https://www.googleapis.com/drive/v3/files/${audit.driveFolderId}`, 'DELETE');
-    } catch(e) {
-      if (!e.message.includes('404')) {
-        showToast('Supprimé en local — erreur Drive');
-        renderHomeAuditList(); renderAllAuditsList(); return;
+      let folderId = audit.driveFolderId;
+      // If folderId is stale (404), find folder by rapport.json content
+      if (folderId) {
+        try {
+          await driveRequest(`https://www.googleapis.com/drive/v3/files/${folderId}`, 'DELETE');
+        } catch(e) {
+          if (e.message.includes('404')) {
+            // Search by finding rapport.json with matching audit id
+            folderId = await findAuditFolderByContent(audit.id);
+            if (folderId) await driveRequest(`https://www.googleapis.com/drive/v3/files/${folderId}`, 'DELETE');
+          } else { throw e; }
+        }
       }
-      // 404 = dossier déjà absent, on continue proprement
-    }
-    try { await uploadOrUpdateJson('audits_index.json', S.allAudits, CONFIG.DRIVE_FOLDER_ID); } catch(e) {}
-    showToast('Audit supprimé ✓');
+      await uploadOrUpdateJson('audits_index.json', S.allAudits, CONFIG.DRIVE_FOLDER_ID);
+      showToast('Audit supprimé ✓');
+    } catch(e) { showToast('Supprimé en local — erreur Drive: ' + e.message); }
   } else { showToast('Supprimé en local'); }
   renderHomeAuditList();
   renderAllAuditsList();
