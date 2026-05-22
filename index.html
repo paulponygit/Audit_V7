@@ -448,9 +448,22 @@ function handleToken(resp) {
   dbPut('settings', {token: resp.access_token, setAt: S.tokenSetAt}, 'tokenData');
   closeModal('modal-offline');
   document.getElementById('offline-banner').classList.remove('show');
-  resolveRole();
-  startTokenExpireWatcher();
-  loadHomeData();
+  // If S.user not set yet (direct OAuth flow, bypassing One Tap), fetch user info
+  if (!S.user) {
+    fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+      headers: {'Authorization': 'Bearer ' + resp.access_token}
+    }).then(r => r.json()).then(p => {
+      S.user = { name: p.name, email: p.email };
+      dbPut('settings', S.user, 'user');
+      resolveRole();
+      startTokenExpireWatcher();
+      loadHomeData();
+    }).catch(() => { showToast('Erreur récupération profil'); });
+  } else {
+    resolveRole();
+    startTokenExpireWatcher();
+    loadHomeData();
+  }
 }
 function reauth() { tokenClient.requestAccessToken({prompt:'select_account'}); }
 function continueOffline() { S.offlineMode = true; closeModal('modal-offline'); showToast('Mode hors ligne activé'); }
