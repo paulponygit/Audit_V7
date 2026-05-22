@@ -1334,7 +1334,28 @@ async function uploadOrUpdateJson(name, data, parentId) {
     await fetch(`https://www.googleapis.com/upload/drive/v3/files/${res.files[0].id}?uploadType=media&supportsAllDrives=true`, {
       method:'PATCH', headers:{'Authorization':'Bearer '+S.accessToken,'Content-Type':'application/json'}, body:content
     });
-  } else { await uploadFileToDrive(toDataURL(content,'application/json'), name, parentId, 'application/json'); }
+  } else {
+    const bnd = 'xb_' + Date.now();
+    const meta = JSON.stringify({name, parents:[parentId], mimeType:'application/json'});
+    const bodyBlob = new Blob([
+      `--${bnd}
+Content-Type: application/json; charset=UTF-8
+
+${meta}
+`,
+      `--${bnd}
+Content-Type: application/json
+
+`,
+      content,
+      `
+--${bnd}--`
+    ]);
+    const r = await fetch(`https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true`, {
+      method:'POST', headers:{'Authorization':'Bearer '+S.accessToken,'Content-Type':`multipart/related; boundary=${bnd}`}, body:bodyBlob
+    });
+    if (!r.ok) throw new Error('Upload '+r.status);
+  }
 }
 async function uploadFileToDrive(dataURL, name, parentId, mimeType) {
   const base64 = dataURL.split(',')[1];
