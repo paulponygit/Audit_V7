@@ -452,7 +452,7 @@ function handleToken(resp) {
   startTokenExpireWatcher();
   loadHomeData();
 }
-function reauth() { tokenClient.requestAccessToken({prompt:''}); }
+function reauth() { tokenClient.requestAccessToken({prompt:'select_account'}); }
 function continueOffline() { S.offlineMode = true; closeModal('modal-offline'); showToast('Mode hors ligne activé'); }
 function isTokenValid() { return S.accessToken && S.tokenSetAt && (Date.now() - S.tokenSetAt) < CONFIG.TOKEN_TTL_MS; }
 function startTokenExpireWatcher() {
@@ -465,9 +465,9 @@ function startTokenExpireWatcher() {
 }
 
 document.getElementById('btn-signin').onclick = () => {
-  google.accounts.id.prompt(n => {
-    if (n.isNotDisplayed() || n.isSkippedMoment()) tokenClient.requestAccessToken({prompt:'consent'});
-  });
+  // On mobile, popup must be triggered directly from user interaction (no async wrapper)
+  // Skip google.accounts.id.prompt() which doesn't work reliably on mobile
+  tokenClient.requestAccessToken({prompt:'select_account'});
 };
 document.getElementById('btn-signout').onclick = () => {
   if (S.accessToken) google.accounts.oauth2.revoke(S.accessToken, ()=>{});
@@ -963,7 +963,7 @@ function onIsoClick(cId, val) {
     if (!existingPZ) { const d=document.createElement('div'); d.innerHTML=buildPhotoHtml(cId,audit.answers[cId],false); block.appendChild(d.firstChild); }
     if (!existingTA) { const ta=document.createElement('textarea'); ta.className='comment-input'; ta.rows=2; ta.placeholder='Commentaire…'; ta.oninput=e=>onCommentInput(cId,e.target.value); block.appendChild(ta); }
   } else { existingEvidence?.remove(); existingPZ?.remove(); existingTA?.remove(); }
-  const grille = S.grilles.find(g=>g.id===audit.grilleId);
+  const grille = S.grilles.find(g=>g.id===audit.grilleId||g.name===(audit.grilleName||audit.grille));
   updateProgress(audit, grille); updateActionsCount(audit);
 }
 function onCommentInput(cId, val) {
@@ -1189,7 +1189,7 @@ async function syncAuditToDrive(audit) {
       }
       answersExport[cId] = {...ans, photos:photoNames, resolved:ans.resolved?{...ans.resolved,photos:resPhotos}:null};
     }
-    const {conformity,majors,minors,concerns} = calcScore(audit, S.grilles.find(g=>g.id===audit.grilleId));
+    const {conformity,majors,minors,concerns} = calcScore(audit, S.grilles.find(g=>g.id===audit.grilleId||g.name===(audit.grilleName||audit.grille)));
     const rapport = {
       id:audit.id, site:audit.site, grilleId:audit.grilleId,
       grilleName:audit.grilleName||audit.grille||'',
