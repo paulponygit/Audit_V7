@@ -937,8 +937,12 @@ function buildQuestionHtml(c, num, ans, locked, auditId) {
     if (!locked && !(ans.photos?.length)) ansHtml += `<div class="evidence-required" id="evreq-${c.id}">⚠ Photo requise</div>`;
   } else if (type==='Text') {
     ansHtml = `<textarea class="comment-input" rows="3" placeholder="Texte libre…" ${locked?'disabled':''} oninput="onCommentInput('${c.id}',this.value)">${escHtml(ans.comment||'')}</textarea>`;
-  } else if (type==='Date') {
+} else if (type==='Date') {
     ansHtml = `<input type="date" class="comment-input" style="padding:10px 12px" ${locked?'disabled':''} value="${ans.comment||''}" onchange="onCommentInput('${c.id}',this.value)">`;
+  } else if (type==='DateWithPhoto') {
+    ansHtml = `<input type="date" class="comment-input" style="padding:10px 12px;margin-bottom:10px" ${locked?'disabled':''} value="${ans.comment||''}" onchange="onCommentInput('${c.id}',this.value)">`;
+    ansHtml += `<div class="evidence-required" id="evreq-${c.id}" style="${(ans.photos?.length)?'display:none':''}">⚠ Photo obligatoire</div>`;
+    ansHtml += buildPhotoHtml(c.id, ans, locked);
   }
   return `<div class="question-block" id="qb-${c.id}">
     <div class="q-num">${num} · <span class="q-type-tag">${type}</span></div>
@@ -1161,13 +1165,20 @@ function renderSummaryTab(audit, grille) {
 // ===================================================
 async function submitAudit(audit, grille) {
   let missingEvidence = false;
+  let missingDatePhoto = false;
   grille?.sections.forEach(s => s.criteria.forEach(c => {
-    if (c.type!=='Iso') return;
-    const ans = (audit.answers||{})[c.id];
-    if (!ans?.val) return;
-    if (ISO_MAP[ans.val]?.needsEvidence && !ans.comment && !(ans.photos?.length)) missingEvidence=true;
+    if (c.type==='Iso') {
+      const ans = (audit.answers||{})[c.id];
+      if (!ans?.val) return;
+      if (ISO_MAP[ans.val]?.needsEvidence && !ans.comment && !(ans.photos?.length)) missingEvidence=true;
+    }
+    if (c.type==='DateWithPhoto') {
+      const ans = (audit.answers||{})[c.id];
+      if (!(ans?.photos?.length)) missingDatePhoto=true;
+    }
   }));
   if (missingEvidence) { showToast('⚠ Certaines réponses nécessitent une photo ou un commentaire'); return; }
+  if (missingDatePhoto) { showToast('⚠ La photo est obligatoire pour "Date of last check"'); return; }
   audit.status='complete';
   await dbPut('audits',audit);
   updateSyncUI(null);
