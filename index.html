@@ -256,10 +256,21 @@
       <span class="topbar-title">Actions correctives</span>
       <span class="topbar-action" id="actions-sort-btn" onclick="toggleActionsSort()">↕ Date</span>
     </div>
-    <div style="display:flex;gap:8px;padding:10px 16px;flex-shrink:0">
-      <button class="filter-chip active" id="sort-date-btn" onclick="setActionsSort('date')">Plus récentes</button>
-      <button class="filter-chip" id="sort-city-btn" onclick="setActionsSort('city')">Par ville</button>
-      <button class="filter-chip" id="sort-open-btn" onclick="setActionsSort('open')">Non résolues</button>
+    <div style="padding:10px 16px 0;flex-shrink:0">
+      <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Tri</div>
+      <div style="display:flex;gap:6px;margin-bottom:10px;overflow-x:auto;scrollbar-width:none">
+        <button class="filter-chip active" id="sort-date-btn" onclick="setActionsSort('date')">Plus récentes</button>
+        <button class="filter-chip" id="sort-city-btn" onclick="setActionsSort('city')">Par ville</button>
+        <button class="filter-chip" id="sort-open-btn" onclick="setActionsSort('open')">Non résolues</button>
+      </div>
+      <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Filtre</div>
+      <div style="display:flex;gap:6px;margin-bottom:10px;overflow-x:auto;scrollbar-width:none">
+        <button class="filter-chip active" id="filter-all-btn" onclick="setActionsFilter('all')">Tous</button>
+        <button class="filter-chip" id="filter-major-btn" onclick="setActionsFilter('major')">🔴 Major</button>
+        <button class="filter-chip" id="filter-minor-btn" onclick="setActionsFilter('minor')">🟠 Minor</button>
+        <button class="filter-chip" id="filter-concern-btn" onclick="setActionsFilter('concern')">🟡 Concern</button>
+        <button class="filter-chip" id="filter-opportunity-btn" onclick="setActionsFilter('opportunity')">⚪ Opportunity</button>
+      </div>
     </div>
     <div id="actions-list" style="padding:0 0 40px"></div>
   </div>
@@ -541,7 +552,22 @@ function updateActionsCorrectivestBtn() {
   const btn = document.getElementById('btn-actions-correctives');
   if (!btn) return;
   if (S.role === 'manager' || S.role === 'admin') {
-    const total = S.allAudits.reduce((sum, a) => sum + (a.stats?.majors||0) + (a.stats?.minors||0), 0);
+    let total = 0;
+    S.allAudits.forEach(a => {
+      const rapport = S.rapportsCache?.[a.id];
+      const grille = S.grilles.find(g => g.id === a.grilleId || g.name === (a.grilleName||a.grille));
+      if (rapport && grille) {
+        grille.sections.forEach(s => s.criteria.forEach(c => {
+          if (c.type !== 'Iso') return;
+          const ans = rapport.answers?.[c.id];
+          if (!ans?.val || ans.val === 'good') return;
+          const tracker = S.actionsTracker?.[a.id]?.questions?.[c.id];
+          if (!tracker?.resolved) total++;
+        }));
+      } else {
+        total += (a.stats?.majors||0) + (a.stats?.minors||0);
+      }
+    });
     document.getElementById('actions-count').textContent = total;
     btn.style.display = total > 0 ? '' : 'none';
   } else {
@@ -827,112 +853,119 @@ async function showActionsCorrectives() {
 }
 
 let actionsSortMode = 'date';
+let actionsFilterMode = 'all';
+
 function setActionsSort(mode) {
   actionsSortMode = mode;
-  document.querySelectorAll('#screen-actions .filter-chip').forEach(c => c.classList.remove('active'));
+  document.querySelectorAll('#screen-actions .filter-chip').forEach(c => {
+    if (['sort-date-btn','sort-city-btn','sort-open-btn'].includes(c.id)) c.classList.remove('active');
+  });
   document.getElementById('sort-'+mode+'-btn').classList.add('active');
+  renderActionsList();
+}
+
+function setActionsFilter(mode) {
+  actionsFilterMode = mode;
+  document.querySelectorAll('#screen-actions .filter-chip').forEach(c => {
+    if (['filter-all-btn','filter-major-btn','filter-minor-btn','filter-concern-btn','filter-opportunity-btn'].includes(c.id)) c.classList.remove('active');
+  });
+  document.getElementById('filter-'+mode+'-btn').classList.add('active');
   renderActionsList();
 }
 
 function renderActionsList() {
   const list = document.getElementById('actions-list');
-  let items = [];
+  let allNCs = [];
+
   S.allAudits.forEach(a => {
-    const majors = a.stats?.majors || 0;
-    const minors = a.stats?.minors || 0;
-    if (majors === 0 && minors === 0) return;
-    items.push({
-      auditId: a.id,
-      site: a.site,
-      date: a.date,
-      grilleName: a.grilleName || a.grille || '—',
-      majors, minors,
-      driveFolderId: a.driveFolderId,
-      resolved: S.actionsTracker?.[a.id]?.resolved || false,
-      note: S.actionsTracker?.[a.id]?.note || ''
-    });
+    const rapport = S.rapportsCache?.[a.id];
+    const grille = S.grilles.find(g => g.id === a.grilleId || g.name === (a.grilleName||a.grille));
+    if (!rapport || !grille) return;
+    grille.sections.forEach(s => s.criteria.forEach(c => {
+      if (c.type !== 'Iso') return;
+      const ans = rapport.answers?.[c.id];
+      if (!ans?.val || ans.val === 'good') return;
+      const tracker = S.actionsTracker?.[a.id]?.questions?.[c.id];
+      allNCs.push({
+        auditId: a.id,
+        questionId: c.id,
+        site: a.site,
+        date: a.date,
+        grilleName: a.grilleName||a.grille||'—',
+        questionText: c.text,
+        level: ans.val,
+        comment: ans.comment||'',
+        resolved: tracker?.resolved || false,
+        note: tracker?.note || ''
+      });
+    }));
   });
 
-  if (actionsSortMode === 'date') items.sort((a,b) => new Date(b.date) - new Date(a.date));
-  if (actionsSortMode === 'city') items.sort((a,b) => a.site.localeCompare(b.site));
-  if (actionsSortMode === 'open') items = items.filter(i => !i.resolved).sort((a,b) => new Date(b.date) - new Date(a.date));
+  // Filter
+  if (actionsFilterMode !== 'all') allNCs = allNCs.filter(nc => nc.level === actionsFilterMode);
+  if (actionsSortMode === 'open') allNCs = allNCs.filter(nc => !nc.resolved);
 
-  if (!items.length) { list.innerHTML = '<div class="empty">✓ Aucune action corrective ouverte</div>'; return; }
+  // Sort
+  if (actionsSortMode === 'date' || actionsSortMode === 'open') allNCs.sort((a,b) => new Date(b.date) - new Date(a.date));
+  if (actionsSortMode === 'city') allNCs.sort((a,b) => a.site.localeCompare(b.site));
 
-list.innerHTML = items.map(item => {
-    const dateStr = new Date(item.date).toLocaleDateString('fr-FR', {day:'numeric', month:'short', year:'numeric'});
-    const resolved = item.resolved;
-    // Build NC detail from cached rapport
-    const rapport = S.rapportsCache?.[item.auditId];
-    const grille = S.grilles.find(g => g.id === item.grilleId || g.name === item.grilleName);
-    let ncHtml = '';
-    if (rapport && grille) {
-      grille.sections.forEach(s => s.criteria.forEach(c => {
-        if (c.type !== 'Iso') return;
-        const ans = rapport.answers?.[c.id];
-        if (!ans?.val || !ISO_MAP[ans.val]?.needsEvidence) return;
-        const tracker = S.actionsTracker?.[item.auditId]?.questions?.[c.id];
-        const qResolved = tracker?.resolved || false;
-        ncHtml += `<div style="padding:8px 10px;background:var(--bg3);border-radius:var(--r);margin-bottom:6px;border-left:3px solid var(--${ans.val})">
-          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
-            <div>
-              <span class="badge b-${ans.val}" style="margin-bottom:4px">${ISO_MAP[ans.val].label}</span>
-              <div style="font-size:13px;color:var(--text);margin-top:4px">${escHtml(c.text)}</div>
-              ${ans.comment?`<div style="font-size:11px;color:var(--text2);margin-top:4px">${escHtml(ans.comment)}</div>`:''}
-            </div>
-            ${qResolved?'<span style="color:var(--good);font-size:18px">✓</span>':''}
-          </div>
-        </div>`;
-      }));
-    }
-    return `<div style="margin:0 16px 10px;background:var(--bg2);border:.5px solid ${resolved?'var(--good)':'var(--border)'};border-radius:var(--r2);overflow:hidden">
+  if (!allNCs.length) { list.innerHTML = '<div class="empty">✓ Aucune action corrective</div>'; return; }
+
+  list.innerHTML = allNCs.map(nc => {
+    const dateStr = new Date(nc.date).toLocaleDateString('fr-FR', {day:'numeric', month:'short', year:'numeric'});
+    return `<div style="margin:0 16px 10px;background:var(--bg2);border:.5px solid ${nc.resolved?'var(--good)':'var(--border)'};border-radius:var(--r2);overflow:hidden">
       <div style="padding:14px 16px">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:8px">
           <div>
-            <div style="font-size:14px;font-weight:500">${item.site}</div>
-            <div style="font-size:12px;color:var(--text2);margin-top:2px">${item.grilleName} · ${dateStr}</div>
+            <div style="font-size:13px;font-weight:500">${nc.site}</div>
+            <div style="font-size:11px;color:var(--text2);margin-top:1px">${nc.grilleName} · ${dateStr}</div>
           </div>
-          ${resolved ? '<span class="badge b-good">✓ Résolu</span>' : ''}
+          <span class="badge b-${nc.level}">${ISO_MAP[nc.level]?.label}</span>
         </div>
-        <div style="display:flex;gap:6px;margin-bottom:10px">
-          ${item.majors>0?`<span class="badge b-major">${item.majors} maj.</span>`:''}
-          ${item.minors>0?`<span class="badge b-minor">${item.minors} min.</span>`:''}
-        </div>
-        ${ncHtml}
-        ${item.note ? `<div style="font-size:12px;color:var(--text2);background:var(--bg3);border-radius:var(--r);padding:8px 10px;margin-bottom:10px">${escHtml(item.note)}</div>` : ''}
-        <textarea class="comment-input" rows="2" placeholder="Notes sur l'avancement…" ${resolved?'disabled':''} oninput="onActionNote('${item.auditId}',this.value)">${escHtml(item.note)}</textarea>
+        <div style="font-size:13px;color:var(--text);margin-bottom:8px;line-height:1.5">${escHtml(nc.questionText)}</div>
+        ${nc.comment?`<div style="font-size:12px;color:var(--text2);margin-bottom:8px;font-style:italic">"${escHtml(nc.comment)}"</div>`:''}
+        ${nc.resolved?'':'<textarea class="comment-input" rows="2" placeholder="Notes sur l\'avancement…" oninput="onActionNote(\''+nc.auditId+'\',\''+nc.questionId+'\',this.value)">'+escHtml(nc.note)+'</textarea>'}
+        ${nc.resolved?`<div style="font-size:12px;color:var(--good);margin-top:6px">✓ Résolu${nc.note?' · '+escHtml(nc.note):''}</div>`:''}
       </div>
-      <div style="display:flex;border-top:.5px solid var(--border)">
-        ${!resolved ? `<button style="flex:1;padding:12px;background:var(--good-bg);color:var(--good);border:none;cursor:pointer;font-size:13px;font-family:'DM Sans',sans-serif;font-weight:500" onclick="markActionResolved('${item.auditId}')">✓ Mark as resolved</button>` : 
-        `<button style="flex:1;padding:12px;background:var(--bg3);color:var(--text3);border:none;cursor:pointer;font-size:13px;font-family:'DM Sans',sans-serif" onclick="markActionUnresolved('${item.auditId}')">↩ Réouvrir</button>`}
+      <div style="border-top:.5px solid var(--border)">
+        ${!nc.resolved
+          ? `<button style="width:100%;padding:12px;background:var(--good-bg);color:var(--good);border:none;cursor:pointer;font-size:13px;font-family:'DM Sans',sans-serif;font-weight:500" onclick="markActionResolved('${nc.auditId}','${nc.questionId}')">✓ Mark as resolved</button>`
+          : `<button style="width:100%;padding:12px;background:var(--bg3);color:var(--text3);border:none;cursor:pointer;font-size:13px;font-family:'DM Sans',sans-serif" onclick="markActionUnresolved('${nc.auditId}','${nc.questionId}')">↩ Réouvrir</button>`
+        }
       </div>
     </div>`;
   }).join('');
 }
 
-function onActionNote(auditId, note) {
+function onActionNote(auditId, questionId, note) {
   if (!S.actionsTracker) S.actionsTracker = {};
-  if (!S.actionsTracker[auditId]) S.actionsTracker[auditId] = {};
-  S.actionsTracker[auditId].note = note;
+  if (!S.actionsTracker[auditId]) S.actionsTracker[auditId] = {questions:{}};
+  if (!S.actionsTracker[auditId].questions) S.actionsTracker[auditId].questions = {};
+  S.actionsTracker[auditId].questions[questionId] = S.actionsTracker[auditId].questions[questionId] || {};
+  S.actionsTracker[auditId].questions[questionId].note = note;
   saveActionsTracker();
 }
 
-async function markActionResolved(auditId) {
+async function markActionResolved(auditId, questionId) {
   if (!confirm('Are you sure this has been resolved?')) return;
   if (!S.actionsTracker) S.actionsTracker = {};
-  if (!S.actionsTracker[auditId]) S.actionsTracker[auditId] = {};
-  S.actionsTracker[auditId].resolved = true;
-  S.actionsTracker[auditId].resolvedAt = Date.now();
+  if (!S.actionsTracker[auditId]) S.actionsTracker[auditId] = {questions:{}};
+  if (!S.actionsTracker[auditId].questions) S.actionsTracker[auditId].questions = {};
+  if (!S.actionsTracker[auditId].questions[questionId]) S.actionsTracker[auditId].questions[questionId] = {};
+  S.actionsTracker[auditId].questions[questionId].resolved = true;
+  S.actionsTracker[auditId].questions[questionId].resolvedAt = Date.now();
   await saveActionsTracker();
   renderActionsList();
   updateActionsCorrectivestBtn();
-  showToast('Action marquée comme résolue ✓');
+  showToast('Action résolue ✓');
 }
 
-async function markActionUnresolved(auditId) {
+async function markActionUnresolved(auditId, questionId) {
   if (!S.actionsTracker) S.actionsTracker = {};
-  if (!S.actionsTracker[auditId]) S.actionsTracker[auditId] = {};
-  S.actionsTracker[auditId].resolved = false;
+  if (!S.actionsTracker[auditId]) S.actionsTracker[auditId] = {questions:{}};
+  if (!S.actionsTracker[auditId].questions) S.actionsTracker[auditId].questions = {};
+  if (!S.actionsTracker[auditId].questions[questionId]) S.actionsTracker[auditId].questions[questionId] = {};
+  S.actionsTracker[auditId].questions[questionId].resolved = false;
   await saveActionsTracker();
   renderActionsList();
   updateActionsCorrectivestBtn();
