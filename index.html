@@ -215,22 +215,10 @@
     <div class="filter-row" id="filter-row">
       <button class="filter-chip active" onclick="setFilter('all',this)">Tous</button>
     </div>
-    <div id="filter-selects" style="display:flex;gap:8px;padding:0 16px 10px;overflow-x:auto;scrollbar-width:none">
-      <select id="filter-city" onchange="applyFilters()" style="background:var(--bg2);border:.5px solid var(--border2);border-radius:var(--r);padding:6px 10px;font-size:12px;color:var(--text2);font-family:'DM Sans',sans-serif;flex-shrink:0">
-        <option value="">Toutes les villes</option>
-      </select>
-      <select id="filter-type" onchange="applyFilters()" style="background:var(--bg2);border:.5px solid var(--border2);border-radius:var(--r);padding:6px 10px;font-size:12px;color:var(--text2);font-family:'DM Sans',sans-serif;flex-shrink:0">
-        <option value="">Tous les types</option>
-      </select>
-      <select id="filter-auditor" onchange="applyFilters()" style="background:var(--bg2);border:.5px solid var(--border2);border-radius:var(--r);padding:6px 10px;font-size:12px;color:var(--text2);font-family:'DM Sans',sans-serif;flex-shrink:0">
-        <option value="">Tous les auditeurs</option>
-      </select>
-      <input type="date" id="filter-date-from" onchange="applyFilters()" style="background:var(--bg2);border:.5px solid var(--border2);border-radius:var(--r);padding:6px 10px;font-size:12px;color:var(--text2);flex-shrink:0">
-      <input type="date" id="filter-date-to" onchange="applyFilters()" style="background:var(--bg2);border:.5px solid var(--border2);border-radius:var(--r);padding:6px 10px;font-size:12px;color:var(--text2);flex-shrink:0">
+    <div style="padding:0 16px 10px;display:flex;gap:8px;align-items:center">
+      <button class="btn btn-ghost" style="flex:1;font-size:13px" onclick="openFilterModal()">⚙ Filtres <span id="filter-count"></span></button>
+      <button class="btn btn-ghost" style="font-size:13px" onclick="resetFilters()">Réinitialiser</button>
     </div>
-    <div id="all-audits-list" style="padding-bottom:20px"></div>
-  </div>
-
   <!-- AUDIT FILL -->
   <div id="screen-audit" class="screen">
     <div class="topbar">
@@ -285,7 +273,44 @@
     </div>
   </div>
 </div>
-
+  
+<!-- MODAL: FILTERS -->
+<div class="modal-overlay" id="modal-filters">
+  <div class="modal">
+    <h2>Filtrer les audits</h2>
+    <div class="field">
+      <label>Ville</label>
+      <select id="filter-city" onchange="updateFilterCount()">
+        <option value="">Toutes les villes</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>Type d'audit</label>
+      <select id="filter-type" onchange="updateFilterCount()">
+        <option value="">Tous les types</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>Auditeur</label>
+      <select id="filter-auditor" onchange="updateFilterCount()">
+        <option value="">Tous les auditeurs</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>Date de début</label>
+      <input type="date" id="filter-date-from" onchange="updateFilterCount()">
+    </div>
+    <div class="field">
+      <label>Date de fin</label>
+      <input type="date" id="filter-date-to" onchange="updateFilterCount()">
+    </div>
+    <div style="display:flex;gap:10px;margin-top:20px">
+      <button class="btn btn-ghost" onclick="resetFilters()">Réinitialiser</button>
+      <button class="btn btn-main" style="flex:1" onclick="applyFiltersAndClose()">Appliquer</button>
+    </div>
+  </div>
+</div>
+  
 <!-- MODAL: NEW AUDIT -->
 <div class="modal-overlay" id="modal-new-audit">
   <div class="modal">
