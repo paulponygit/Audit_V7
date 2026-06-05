@@ -249,7 +249,20 @@
     <div id="audit-tab-actions" style="display:none;padding-bottom:20px"></div>
     <div id="audit-tab-summary" style="display:none;padding-bottom:40px"></div>
   </div>
-
+<!-- ACTIONS CORRECTIVES -->
+  <div id="screen-actions" class="screen">
+    <div class="topbar">
+      <span class="topbar-back" onclick="showHome()">← Retour</span>
+      <span class="topbar-title">Actions correctives</span>
+      <span class="topbar-action" id="actions-sort-btn" onclick="toggleActionsSort()">↕ Date</span>
+    </div>
+    <div style="display:flex;gap:8px;padding:10px 16px;flex-shrink:0">
+      <button class="filter-chip active" id="sort-date-btn" onclick="setActionsSort('date')">Plus récentes</button>
+      <button class="filter-chip" id="sort-city-btn" onclick="setActionsSort('city')">Par ville</button>
+      <button class="filter-chip" id="sort-open-btn" onclick="setActionsSort('open')">Non résolues</button>
+    </div>
+    <div id="actions-list" style="padding:0 0 40px"></div>
+  </div>
   <!-- GRILLES -->
   <div id="screen-grilles" class="screen">
     <div class="topbar">
