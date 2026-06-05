@@ -538,7 +538,7 @@ function updateActionsCorrectivestBtn() {
   }
 }
 function resolveRole() {
-  const adminEmails = ['paul.marchand@getapony.com'];
+  const adminEmails = ['paul.marchand@getapony.com', 'nicolas.bergeron@getapony.com'];
   const managerEmails = [];
   if (!S.user) return;
   if (adminEmails.includes(S.user.email)) S.role = 'admin';
