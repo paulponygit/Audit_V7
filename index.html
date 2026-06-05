@@ -441,6 +441,7 @@ let S = {
   offlineMode: false,
   driveRootFolderId: CONFIG.DRIVE_FOLDER_ID,
   actionsTracker: {},
+  rapportsCache: {},
 };
 
 // ===================================================
@@ -809,10 +810,19 @@ async function saveGrillesToDrive() {
     await uploadFileToDrive(toDataURL(data,'application/json'), 'grilles.json', CONFIG.DRIVE_FOLDER_ID, 'application/json');
   }
 }
-  async function showActionsCorrectives() {
+async function showActionsCorrectives() {
   showScreen('screen-actions');
   document.getElementById('actions-list').innerHTML = '<div class="empty"><div class="spinner" style="margin:0 auto"></div><div style="margin-top:12px">Chargement…</div></div>';
   if (!S.allAudits.length) await refreshAllAudits();
+  // Load rapport.json for audits with nonconformities (cached)
+  const auditsWithNC = S.allAudits.filter(a => (a.stats?.majors||0) + (a.stats?.minors||0) > 0);
+  for (const a of auditsWithNC) {
+    if (!S.rapportsCache) S.rapportsCache = {};
+    if (!S.rapportsCache[a.id] && a.driveFolderId && isTokenValid()) {
+      const rapport = await loadJsonFromFolder(a.driveFolderId, 'rapport.json');
+      if (rapport) S.rapportsCache[a.id] = rapport;
+    }
+  }
   renderActionsList();
 }
 
@@ -849,9 +859,32 @@ function renderActionsList() {
 
   if (!items.length) { list.innerHTML = '<div class="empty">✓ Aucune action corrective ouverte</div>'; return; }
 
-  list.innerHTML = items.map(item => {
+list.innerHTML = items.map(item => {
     const dateStr = new Date(item.date).toLocaleDateString('fr-FR', {day:'numeric', month:'short', year:'numeric'});
     const resolved = item.resolved;
+    // Build NC detail from cached rapport
+    const rapport = S.rapportsCache?.[item.auditId];
+    const grille = S.grilles.find(g => g.id === item.grilleId || g.name === item.grilleName);
+    let ncHtml = '';
+    if (rapport && grille) {
+      grille.sections.forEach(s => s.criteria.forEach(c => {
+        if (c.type !== 'Iso') return;
+        const ans = rapport.answers?.[c.id];
+        if (!ans?.val || !ISO_MAP[ans.val]?.needsEvidence) return;
+        const tracker = S.actionsTracker?.[item.auditId]?.questions?.[c.id];
+        const qResolved = tracker?.resolved || false;
+        ncHtml += `<div style="padding:8px 10px;background:var(--bg3);border-radius:var(--r);margin-bottom:6px;border-left:3px solid var(--${ans.val})">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+            <div>
+              <span class="badge b-${ans.val}" style="margin-bottom:4px">${ISO_MAP[ans.val].label}</span>
+              <div style="font-size:13px;color:var(--text);margin-top:4px">${escHtml(c.text)}</div>
+              ${ans.comment?`<div style="font-size:11px;color:var(--text2);margin-top:4px">${escHtml(ans.comment)}</div>`:''}
+            </div>
+            ${qResolved?'<span style="color:var(--good);font-size:18px">✓</span>':''}
+          </div>
+        </div>`;
+      }));
+    }
     return `<div style="margin:0 16px 10px;background:var(--bg2);border:.5px solid ${resolved?'var(--good)':'var(--border)'};border-radius:var(--r2);overflow:hidden">
       <div style="padding:14px 16px">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">
@@ -865,6 +898,7 @@ function renderActionsList() {
           ${item.majors>0?`<span class="badge b-major">${item.majors} maj.</span>`:''}
           ${item.minors>0?`<span class="badge b-minor">${item.minors} min.</span>`:''}
         </div>
+        ${ncHtml}
         ${item.note ? `<div style="font-size:12px;color:var(--text2);background:var(--bg3);border-radius:var(--r);padding:8px 10px;margin-bottom:10px">${escHtml(item.note)}</div>` : ''}
         <textarea class="comment-input" rows="2" placeholder="Notes sur l'avancement…" ${resolved?'disabled':''} oninput="onActionNote('${item.auditId}',this.value)">${escHtml(item.note)}</textarea>
       </div>
