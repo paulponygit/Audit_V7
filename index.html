@@ -657,7 +657,34 @@ function populateFilterOptions() {
   typeEl.innerHTML = '<option value="">Tous les types</option>' + types.map(t=>`<option value="${t}">${t}</option>`).join('');
   auditorEl.innerHTML = '<option value="">Tous les auditeurs</option>' + auditors.map(a=>`<option value="${a}">${a.split('@')[0]}</option>`).join('');
 }
-
+function openFilterModal() {
+  document.getElementById('modal-filters').classList.add('open');
+}
+function applyFiltersAndClose() {
+  closeModal('modal-filters');
+  applyFilters();
+  updateFilterCount();
+}
+function resetFilters() {
+  document.getElementById('filter-city').value = '';
+  document.getElementById('filter-type').value = '';
+  document.getElementById('filter-auditor').value = '';
+  document.getElementById('filter-date-from').value = '';
+  document.getElementById('filter-date-to').value = '';
+  document.getElementById('filter-count').textContent = '';
+  closeModal('modal-filters');
+  applyFilters();
+}
+function updateFilterCount() {
+  const active = [
+    document.getElementById('filter-city').value,
+    document.getElementById('filter-type').value,
+    document.getElementById('filter-auditor').value,
+    document.getElementById('filter-date-from').value,
+    document.getElementById('filter-date-to').value,
+  ].filter(Boolean).length;
+  document.getElementById('filter-count').textContent = active > 0 ? `(${active})` : '';
+}
 function applyFilters() {
   const city = document.getElementById('filter-city').value;
   const type = document.getElementById('filter-type').value;
