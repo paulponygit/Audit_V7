@@ -953,7 +953,6 @@ function buildQuestionHtml(c, num, ans, locked, auditId) {
           <input type="number" min="0" class="comment-input" style="padding:10px 12px" ${locked?'disabled':''} value="${val2}" placeholder="0" oninput="onDualInput('${c.id}','dual2',this.value)">
         </div>
       </div>`;
-  }
   } else if (type==='DateWithPhoto') {
     ansHtml = `<input type="date" class="comment-input" style="padding:10px 12px;margin-bottom:10px" ${locked?'disabled':''} value="${ans.comment||''}" onchange="onCommentInput('${c.id}',this.value)">`;
     ansHtml += `<div class="evidence-required" id="evreq-${c.id}" style="${(ans.photos?.length)?'display:none':''}">⚠ Photo obligatoire</div>`;
