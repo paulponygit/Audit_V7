@@ -587,7 +587,6 @@ function renderHomeAuditList() {
   const actions = S.myAudits.reduce((s,a) => s + countOpenActions(a), 0);
   document.getElementById('stat-total').textContent = total;
   document.getElementById('stat-pending').textContent = pending;
-  document.getElementById('stat-actions').textContent = actions;
   if (!S.myAudits.length) { list.innerHTML = '<div class="empty">Aucun audit récent.</div>'; return; }
   list.innerHTML = S.myAudits.map(a => renderAuditCard(a)).join('');
 }
