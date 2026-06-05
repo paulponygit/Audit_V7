@@ -939,6 +939,21 @@ function buildQuestionHtml(c, num, ans, locked, auditId) {
     ansHtml = `<textarea class="comment-input" rows="3" placeholder="Texte libre…" ${locked?'disabled':''} oninput="onCommentInput('${c.id}',this.value)">${escHtml(ans.comment||'')}</textarea>`;
 } else if (type==='Date') {
     ansHtml = `<input type="date" class="comment-input" style="padding:10px 12px" ${locked?'disabled':''} value="${ans.comment||''}" onchange="onCommentInput('${c.id}',this.value)">`;
+  } else if (type==='DualNumber') {
+    const val1 = ans.dual1||'';
+    const val2 = ans.dual2||'';
+    ansHtml = `
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <div>
+          <div style="font-size:11px;color:var(--text3);margin-bottom:6px">Nombre de véhicules checkés</div>
+          <input type="number" min="0" class="comment-input" style="padding:10px 12px" ${locked?'disabled':''} value="${val1}" placeholder="0" oninput="onDualInput('${c.id}','dual1',this.value)">
+        </div>
+        <div>
+          <div style="font-size:11px;color:var(--text3);margin-bottom:6px">Nombre de véhicules mal déclarés</div>
+          <input type="number" min="0" class="comment-input" style="padding:10px 12px" ${locked?'disabled':''} value="${val2}" placeholder="0" oninput="onDualInput('${c.id}','dual2',this.value)">
+        </div>
+      </div>`;
+  }
   } else if (type==='DateWithPhoto') {
     ansHtml = `<input type="date" class="comment-input" style="padding:10px 12px;margin-bottom:10px" ${locked?'disabled':''} value="${ans.comment||''}" onchange="onCommentInput('${c.id}',this.value)">`;
     ansHtml += `<div class="evidence-required" id="evreq-${c.id}" style="${(ans.photos?.length)?'display:none':''}">⚠ Photo obligatoire</div>`;
@@ -995,6 +1010,12 @@ function onIsoClick(cId, val) {
   const grille = S.grilles.find(g=>g.id===audit.grilleId||g.name===(audit.grilleName||audit.grille));
   updateProgress(audit, grille); updateActionsCount(audit);
 }
+  function onDualInput(cId, field, val) {
+  const audit = ensureAns(cId);
+  audit.answers[cId][field] = val;
+  audit.answers[cId].updated_at = Date.now();
+  dbPut('audits', audit);
+}
 function onCommentInput(cId, val) {
   const audit = ensureAns(cId);
   audit.answers[cId].comment = val; audit.answers[cId].updated_at = Date.now();
@@ -1032,8 +1053,7 @@ document.getElementById('photo-input').onchange = async e => {
 function updateProgress(audit, grille) {
   if (!grille) return;
   const total = grille.sections.reduce((s,sec)=>s+sec.criteria.length,0);
-  const answered = Object.values(audit.answers||{}).filter(a=>a.val||(a.comment?.length)||(a.photos?.length)).length;
-  const pct = total ? Math.round(answered/total*100) : 0;
+const answered = Object.values(audit.answers||{}).filter(a=>a.val||(a.comment?.length)||(a.photos?.length)||a.dual1!==undefined).length;  const pct = total ? Math.round(answered/total*100) : 0;
   document.getElementById('prog-nums').textContent=`${answered}/${total}`;
   document.getElementById('prog-fill').style.width=pct+'%';
   document.getElementById('prog-pct').textContent=pct+'%';
