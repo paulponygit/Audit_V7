@@ -523,7 +523,17 @@ document.getElementById('btn-signout').onclick = () => {
   dbClear('audits'); dbClear('grilles');
   showScreen('screen-signin');
 };
-
+function updateActionsCorrectivestBtn() {
+  const btn = document.getElementById('btn-actions-correctives');
+  if (!btn) return;
+  if (S.role === 'manager' || S.role === 'admin') {
+    const total = S.allAudits.reduce((sum, a) => sum + (a.stats?.majors||0) + (a.stats?.minors||0), 0);
+    document.getElementById('actions-count').textContent = total;
+    btn.style.display = total > 0 ? '' : 'none';
+  } else {
+    btn.style.display = 'none';
+  }
+}
 function resolveRole() {
   const adminEmails = ['paul.marchand@getapony.com'];
   const managerEmails = [];
