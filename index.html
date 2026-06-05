@@ -440,6 +440,7 @@ let S = {
   photoTarget: null,
   offlineMode: false,
   driveRootFolderId: CONFIG.DRIVE_FOLDER_ID,
+  actionsTracker: {},
 };
 
 // ===================================================
@@ -571,6 +572,7 @@ async function loadHomeData() {
   setLoading(true, 'Chargement des grilles…');
   try {
     await loadGrillesFromDrive();
+    await loadActionsTracker();
     setLoading(true, 'Chargement de vos audits…');
     await loadMyAudits();
   } catch(e) {
@@ -806,6 +808,116 @@ async function saveGrillesToDrive() {
   } else {
     await uploadFileToDrive(toDataURL(data,'application/json'), 'grilles.json', CONFIG.DRIVE_FOLDER_ID, 'application/json');
   }
+}
+  async function showActionsCorrectives() {
+  showScreen('screen-actions');
+  document.getElementById('actions-list').innerHTML = '<div class="empty"><div class="spinner" style="margin:0 auto"></div><div style="margin-top:12px">Chargement…</div></div>';
+  if (!S.allAudits.length) await refreshAllAudits();
+  renderActionsList();
+}
+
+let actionsSortMode = 'date';
+function setActionsSort(mode) {
+  actionsSortMode = mode;
+  document.querySelectorAll('#screen-actions .filter-chip').forEach(c => c.classList.remove('active'));
+  document.getElementById('sort-'+mode+'-btn').classList.add('active');
+  renderActionsList();
+}
+
+function renderActionsList() {
+  const list = document.getElementById('actions-list');
+  let items = [];
+  S.allAudits.forEach(a => {
+    const majors = a.stats?.majors || 0;
+    const minors = a.stats?.minors || 0;
+    if (majors === 0 && minors === 0) return;
+    items.push({
+      auditId: a.id,
+      site: a.site,
+      date: a.date,
+      grilleName: a.grilleName || a.grille || '—',
+      majors, minors,
+      driveFolderId: a.driveFolderId,
+      resolved: S.actionsTracker?.[a.id]?.resolved || false,
+      note: S.actionsTracker?.[a.id]?.note || ''
+    });
+  });
+
+  if (actionsSortMode === 'date') items.sort((a,b) => new Date(b.date) - new Date(a.date));
+  if (actionsSortMode === 'city') items.sort((a,b) => a.site.localeCompare(b.site));
+  if (actionsSortMode === 'open') items = items.filter(i => !i.resolved).sort((a,b) => new Date(b.date) - new Date(a.date));
+
+  if (!items.length) { list.innerHTML = '<div class="empty">✓ Aucune action corrective ouverte</div>'; return; }
+
+  list.innerHTML = items.map(item => {
+    const dateStr = new Date(item.date).toLocaleDateString('fr-FR', {day:'numeric', month:'short', year:'numeric'});
+    const resolved = item.resolved;
+    return `<div style="margin:0 16px 10px;background:var(--bg2);border:.5px solid ${resolved?'var(--good)':'var(--border)'};border-radius:var(--r2);overflow:hidden">
+      <div style="padding:14px 16px">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">
+          <div>
+            <div style="font-size:14px;font-weight:500">${item.site}</div>
+            <div style="font-size:12px;color:var(--text2);margin-top:2px">${item.grilleName} · ${dateStr}</div>
+          </div>
+          ${resolved ? '<span class="badge b-good">✓ Résolu</span>' : ''}
+        </div>
+        <div style="display:flex;gap:6px;margin-bottom:10px">
+          ${item.majors>0?`<span class="badge b-major">${item.majors} maj.</span>`:''}
+          ${item.minors>0?`<span class="badge b-minor">${item.minors} min.</span>`:''}
+        </div>
+        ${item.note ? `<div style="font-size:12px;color:var(--text2);background:var(--bg3);border-radius:var(--r);padding:8px 10px;margin-bottom:10px">${escHtml(item.note)}</div>` : ''}
+        <textarea class="comment-input" rows="2" placeholder="Notes sur l'avancement…" ${resolved?'disabled':''} oninput="onActionNote('${item.auditId}',this.value)">${escHtml(item.note)}</textarea>
+      </div>
+      <div style="display:flex;border-top:.5px solid var(--border)">
+        ${!resolved ? `<button style="flex:1;padding:12px;background:var(--good-bg);color:var(--good);border:none;cursor:pointer;font-size:13px;font-family:'DM Sans',sans-serif;font-weight:500" onclick="markActionResolved('${item.auditId}')">✓ Mark as resolved</button>` : 
+        `<button style="flex:1;padding:12px;background:var(--bg3);color:var(--text3);border:none;cursor:pointer;font-size:13px;font-family:'DM Sans',sans-serif" onclick="markActionUnresolved('${item.auditId}')">↩ Réouvrir</button>`}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function onActionNote(auditId, note) {
+  if (!S.actionsTracker) S.actionsTracker = {};
+  if (!S.actionsTracker[auditId]) S.actionsTracker[auditId] = {};
+  S.actionsTracker[auditId].note = note;
+  saveActionsTracker();
+}
+
+async function markActionResolved(auditId) {
+  if (!confirm('Are you sure this has been resolved?')) return;
+  if (!S.actionsTracker) S.actionsTracker = {};
+  if (!S.actionsTracker[auditId]) S.actionsTracker[auditId] = {};
+  S.actionsTracker[auditId].resolved = true;
+  S.actionsTracker[auditId].resolvedAt = Date.now();
+  await saveActionsTracker();
+  renderActionsList();
+  updateActionsCorrectivestBtn();
+  showToast('Action marquée comme résolue ✓');
+}
+
+async function markActionUnresolved(auditId) {
+  if (!S.actionsTracker) S.actionsTracker = {};
+  if (!S.actionsTracker[auditId]) S.actionsTracker[auditId] = {};
+  S.actionsTracker[auditId].resolved = false;
+  await saveActionsTracker();
+  renderActionsList();
+  updateActionsCorrectivestBtn();
+  showToast('Action réouverte');
+}
+
+async function saveActionsTracker() {
+  await dbPut('settings', S.actionsTracker, 'actionsTracker');
+  if (isTokenValid()) {
+    await uploadOrUpdateJson('actions_tracker.json', S.actionsTracker, CONFIG.DRIVE_FOLDER_ID);
+  }
+}
+
+async function loadActionsTracker() {
+  const local = await dbGet('settings', 'actionsTracker');
+  if (local) { S.actionsTracker = local; return; }
+  const drive = await loadJsonFromDrive('actions_tracker.json');
+  if (drive) { S.actionsTracker = drive; await dbPut('settings', drive, 'actionsTracker'); }
+  else S.actionsTracker = {};
 }
 function showGrilles() {
   document.getElementById('btn-new-grille').style.display = S.role==='admin' ? '' : 'none';
