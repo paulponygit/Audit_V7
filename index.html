@@ -935,9 +935,9 @@ function buildQuestionHtml(c, num, ans, locked, auditId) {
   } else if (type==='Picture') {
     ansHtml = buildPhotoHtml(c.id, ans, locked);
     if (!locked && !(ans.photos?.length)) ansHtml += `<div class="evidence-required" id="evreq-${c.id}">⚠ Photo requise</div>`;
-  } else if (type==='Text') {
+} else if (type==='Text') {
     ansHtml = `<textarea class="comment-input" rows="3" placeholder="Texte libre…" ${locked?'disabled':''} oninput="onCommentInput('${c.id}',this.value)">${escHtml(ans.comment||'')}</textarea>`;
-} else if (type==='Date') {
+  } else if (type==='Date') {
     ansHtml = `<input type="date" class="comment-input" style="padding:10px 12px" ${locked?'disabled':''} value="${ans.comment||''}" onchange="onCommentInput('${c.id}',this.value)">`;
   } else if (type==='DualNumber') {
     const val1 = ans.dual1||'';
