@@ -1509,7 +1509,8 @@ async function syncAuditToDrive(audit) {
     // Update audits_index.json
     await updateAuditsIndex(audit, stats);
     // Update nc_index.json
-    await updateNcIndex(audit, answersExport, grille);
+    const grilleForNc = S.grilles.find(g=>g.id===audit.grilleId||g.name===(audit.grilleName||audit.grille));
+    await updateNcIndex(audit, answersExport, grilleForNc);
     await dbPut('audits', audit);
     updateSyncUI(true);
   } catch(e) {
