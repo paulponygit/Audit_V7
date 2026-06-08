@@ -553,22 +553,10 @@ function updateActionsCorrectivestBtn() {
   const btn = document.getElementById('btn-actions-correctives');
   if (!btn) return;
   if (S.role === 'manager' || S.role === 'admin') {
-    let total = 0;
-    S.allAudits.forEach(a => {
-      const rapport = S.rapportsCache?.[a.id];
-      const grille = S.grilles.find(g => g.id === a.grilleId || g.name === (a.grilleName||a.grille));
-      if (rapport && grille) {
-        grille.sections.forEach(s => s.criteria.forEach(c => {
-          if (c.type !== 'Iso') return;
-          const ans = rapport.answers?.[c.id];
-          if (!ans?.val || ans.val === 'good') return;
-          const tracker = S.actionsTracker?.[a.id]?.questions?.[c.id];
-          if (!tracker?.resolved) total++;
-        }));
-      } else {
-        total += (a.stats?.majors||0) + (a.stats?.minors||0);
-      }
-    });
+    const total = (S.ncIndex || []).filter(nc => {
+      const tracker = S.actionsTracker?.[nc.auditId]?.questions?.[nc.questionId];
+      return !tracker?.resolved;
+    }).length;
     document.getElementById('actions-count').textContent = total;
     btn.style.display = total > 0 ? '' : 'none';
   } else {
