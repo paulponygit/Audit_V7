@@ -453,6 +453,7 @@ let S = {
   driveRootFolderId: CONFIG.DRIVE_FOLDER_ID,
   actionsTracker: {},
   rapportsCache: {},
+  ncIndex: [],
 };
 
 // ===================================================
@@ -839,15 +840,9 @@ async function saveGrillesToDrive() {
 async function showActionsCorrectives() {
   showScreen('screen-actions');
   document.getElementById('actions-list').innerHTML = '<div class="empty"><div class="spinner" style="margin:0 auto"></div><div style="margin-top:12px">Chargement…</div></div>';
-  if (!S.allAudits.length) await refreshAllAudits();
-  // Load rapport.json for audits with nonconformities (cached)
-  const auditsWithNC = S.allAudits.filter(a => (a.stats?.majors||0) + (a.stats?.minors||0) > 0);
-  for (const a of auditsWithNC) {
-    if (!S.rapportsCache) S.rapportsCache = {};
-    if (!S.rapportsCache[a.id] && a.driveFolderId && isTokenValid()) {
-      const rapport = await loadJsonFromFolder(a.driveFolderId, 'rapport.json');
-      if (rapport) S.rapportsCache[a.id] = rapport;
-    }
+  if (isTokenValid()) {
+    const index = await loadJsonFromDrive('nc_index.json');
+    if (index) S.ncIndex = index;
   }
   renderActionsList();
 }
@@ -877,28 +872,21 @@ function renderActionsList() {
   const list = document.getElementById('actions-list');
   let allNCs = [];
 
-  S.allAudits.forEach(a => {
-    const rapport = S.rapportsCache?.[a.id];
-    const grille = S.grilles.find(g => g.id === a.grilleId || g.name === (a.grilleName||a.grille));
-    if (!rapport || !grille) return;
-    grille.sections.forEach(s => s.criteria.forEach(c => {
-      if (c.type !== 'Iso') return;
-      const ans = rapport.answers?.[c.id];
-      if (!ans?.val || ans.val === 'good') return;
-      const tracker = S.actionsTracker?.[a.id]?.questions?.[c.id];
-      allNCs.push({
-        auditId: a.id,
-        questionId: c.id,
-        site: a.site,
-        date: a.date,
-        grilleName: a.grilleName||a.grille||'—',
-        questionText: c.text,
-        level: ans.val,
-        comment: ans.comment||'',
-        resolved: tracker?.resolved || false,
-        note: tracker?.note || ''
-      });
-    }));
+  (S.ncIndex || []).forEach(nc => {
+    const tracker = S.actionsTracker?.[nc.auditId]?.questions?.[nc.questionId];
+    allNCs.push({
+      auditId: nc.auditId,
+      questionId: nc.questionId,
+      site: nc.site,
+      date: nc.date,
+      grilleName: nc.grilleName,
+      questionText: nc.questionText,
+      level: nc.level,
+      comment: nc.comment||'',
+      hasPhotos: nc.hasPhotos||false,
+      resolved: tracker?.resolved || false,
+      note: tracker?.note || ''
+    });
   });
 
   // Filter
