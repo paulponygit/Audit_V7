@@ -1508,6 +1508,8 @@ async function syncAuditToDrive(audit) {
     await uploadOrUpdateJson('rapport.json', rapport, folderId);
     // Update audits_index.json
     await updateAuditsIndex(audit, stats);
+    // Update nc_index.json
+    await updateNcIndex(audit, answersExport, grille);
     await dbPut('audits', audit);
     updateSyncUI(true);
   } catch(e) {
@@ -1538,6 +1540,34 @@ async function updateAuditsIndex(audit, stats) {
   index = index.sort((a,b) => new Date(b.date) - new Date(a.date));
   S.allAudits = index;
   await uploadOrUpdateJson('audits_index.json', index, CONFIG.DRIVE_FOLDER_ID);
+}
+  async function updateNcIndex(audit, answers, grille) {
+  if (!grille) return;
+  // Remove existing NCs for this audit
+  let index = await loadJsonFromDrive('nc_index.json') || [];
+  index = index.filter(nc => nc.auditId !== audit.id);
+  // Add current NCs
+  grille.sections.forEach(s => s.criteria.forEach(c => {
+    if (c.type !== 'Iso') return;
+    const ans = answers[c.id];
+    if (!ans?.val || ans.val === 'good') return;
+    index.push({
+      auditId: audit.id,
+      questionId: c.id,
+      site: audit.site,
+      date: audit.date,
+      grilleName: audit.grilleName || audit.grille || '—',
+      auditor: audit.auditor,
+      driveFolderId: audit.driveFolderId,
+      questionText: c.text,
+      level: ans.val,
+      comment: ans.comment || '',
+      hasPhotos: (ans.photos?.length || 0) > 0,
+      submittedAt: Date.now()
+    });
+  }));
+  await uploadOrUpdateJson('nc_index.json', index, CONFIG.DRIVE_FOLDER_ID);
+  S.ncIndex = index;
 }
 
 // ===================================================
