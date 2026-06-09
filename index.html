@@ -1425,7 +1425,7 @@ function renderActionsTab(audit, grille) {
     return `<div class="action-block ${res?'action-resolved':''}">
       <div style="padding:14px 16px;display:flex;align-items:flex-start;gap:10px">
         <div style="flex:1"><div style="font-size:13px;font-weight:500;margin-bottom:6px">${escHtml(c.text)}</div>
-          ${res?`<span class="badge b-good" style="margin-left:6px">✓ Resolved</span>`:''}`
+          ${res?`<span class="badge b-good" style="margin-left:6px">✓ Resolved</span>`:''}
         </div>
       </div>
       ${res?`<div style="padding:0 16px 14px;border-top:.5px solid var(--border)">
