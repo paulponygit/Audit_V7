@@ -907,8 +907,8 @@ function renderActionsList() {
         <div style="font-size:12px;color:var(--text2);margin-bottom:8px">
           📅 Audit réalisé le ${new Date(nc.date).toLocaleDateString('fr-FR',{day:'numeric',month:'long',year:'numeric'})}
           ${!nc.launched && !nc.resolved ? `· <span style="color:var(--major)">⏱ ${Math.floor((Date.now()-new Date(nc.date))/(1000*60*60*24))} jour(s) sans action</span>` : ''}
-          ${nc.launched && !nc.resolved ? `· <span style="color:var(--concern)">🚀 Action launched on ${new Date(S.actionsTracker?.[nc.auditId]?.questions?.[nc.questionId]?.launchedAt).toLocaleDateString('fr-FR',{day:'numeric',month:'long',year:'numeric'})}</span>` : ''}
-          ${nc.launched || nc.resolved ? `· <span style="color:var(--concern)">🚀 Action launched on ${new Date(S.actionsTracker?.[nc.auditId]?.questions?.[nc.questionId]?.launchedAt).toLocaleDateString('fr-FR',{day:'numeric',month:'long',year:'numeric'})}</span>` : ''}
+         ${(nc.launched || nc.resolved) && S.actionsTracker?.[nc.auditId]?.questions?.[nc.questionId]?.launchedAt ? `· <span style="color:var(--concern)">🚀 Action launched on ${new Date(S.actionsTracker?.[nc.auditId]?.questions?.[nc.questionId]?.launchedAt).toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'})}</span>` : ''}
+          ${nc.resolved && S.actionsTracker?.[nc.auditId]?.questions?.[nc.questionId]?.resolvedAt ? `· <span style="color:var(--good)">✓ Resolved on ${new Date(S.actionsTracker?.[nc.auditId]?.questions?.[nc.questionId]?.resolvedAt).toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'})}</span>` : ''}
           ${nc.resolved ? `· <span style="color:var(--good)">✓ Resolved on ${new Date(S.actionsTracker?.[nc.auditId]?.questions?.[nc.questionId]?.resolvedAt).toLocaleDateString('fr-FR',{day:'numeric',month:'long',year:'numeric'})}</span>` : ''}
         </div>
         ${nc.resolved?'':'<textarea class="comment-input" rows="2" placeholder="Notes on progress…" oninput="onActionNote(\''+nc.auditId+'\',\''+nc.questionId+'\',this.value)">'+escHtml(nc.note)+'</textarea>'}
@@ -919,7 +919,7 @@ function renderActionsList() {
           : nc.launched
           ? `<div style="display:flex;border-top:.5px solid var(--border)">
               <button style="flex:1;padding:12px;background:var(--concern-bg);color:var(--concern);border:none;cursor:pointer;font-size:13px;font-family:'DM Sans',sans-serif;font-weight:500">⏳ Action in progress </button>
-              <button style="flex:1;padding:12px;background:var(--good-bg);color:var(--good);border:none;border-left:.5px solid var(--border);cursor:pointer;font-size:13px;font-family:'DM Sans',sans-serif;font-weight:500" onclick="markActionResolved('${nc.auditId}','${nc.questionId}')">✓ Résolu</button>
+              <button style="flex:1;padding:12px;background:var(--good-bg);color:var(--good);border:none;border-left:.5px solid var(--border);cursor:pointer;font-size:13px;font-family:'DM Sans',sans-serif;font-weight:500" onclick="markActionResolved('${nc.auditId}','${nc.questionId}')">`✓ Mark as resolved`</button>
             </div>`
           : `<div style="display:flex">
               <button style="flex:1;padding:12px;background:var(--concern-bg);color:var(--concern);border:none;cursor:pointer;font-size:13px;font-family:'DM Sans',sans-serif;font-weight:500" onclick="markActionLaunched('${nc.auditId}','${nc.questionId}')">🚀 Launch corrective action</button>
