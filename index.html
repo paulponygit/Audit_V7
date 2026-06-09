@@ -1180,7 +1180,7 @@ async function createAudit() {
 async function openAuditFromDrive(folderId, auditId) {
   // Check if in local cache
   let audit = await dbGet('audits', auditId);
-  if (!audit && isTokenValid()) {
+  if ((!audit || !audit.answers || Object.keys(audit.answers).length === 0) && isTokenValid()) {
     audit = await loadJsonFromFolder(folderId, 'rapport.json');
     if (audit) { audit.driveFolderId = folderId; await dbPut('audits', audit); }
   }
