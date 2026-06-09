@@ -558,7 +558,7 @@ function updateActionsCorrectivestBtn() {
       return !tracker?.resolved;
     }).length;
     document.getElementById('actions-count').textContent = total;
-    btn.style.display = total > 0 ? '' : 'none';
+    btn.style.display = '';
   } else {
     btn.style.display = 'none';
   }
