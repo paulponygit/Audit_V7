@@ -1510,8 +1510,13 @@ async function updateAuditsIndex(audit, stats) {
     driveFolderId: audit.driveFolderId,
     stats: {conformity: stats.conformity, majors: stats.majors, minors: stats.minors, concerns: stats.concerns}
   };
-  // Load current index
-  let index = await loadJsonFromDrive('audits_index.json') || [];
+  // Load current index from Drive
+  let driveIndex = await loadJsonFromDrive('audits_index.json') || [];
+  // Safety check — never overwrite with a smaller index unless it's the same audit
+  let memoryIndex = [...S.allAudits];
+  // Merge: start from the larger of the two
+  let index = driveIndex.length >= memoryIndex.length ? driveIndex : memoryIndex;
+  // Update or add the current audit entry
   const idx = index.findIndex(a => a.id === audit.id);
   if (idx >= 0) index[idx] = entry; else index.unshift(entry);
   index = index.sort((a,b) => new Date(b.date) - new Date(a.date));
