@@ -945,6 +945,7 @@ function renderActionsList() {
 
   if (!allNCs.length) { list.innerHTML = '<div class="empty">✓ Aucune action corrective</div>'; return; }
 
+  updateActionsKpis();
   list.innerHTML = allNCs.map(nc => {
     const dateStr = new Date(nc.date).toLocaleDateString('fr-FR', {day:'numeric', month:'short', year:'numeric'});
     return `<div style="margin:0 16px 10px;background:var(--bg2);border:.5px solid ${nc.resolved?'var(--good)':'var(--border)'};border-radius:var(--r2);overflow:hidden">
