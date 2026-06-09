@@ -922,9 +922,10 @@ function renderActionsList() {
               <button style="flex:1;padding:12px;background:var(--good-bg);color:var(--good);border:none;border-left:.5px solid var(--border);cursor:pointer;font-size:13px;font-family:'DM Sans',sans-serif;font-weight:500" onclick="markActionResolved('${nc.auditId}','${nc.questionId}')">✓ Mark as resolved</button>
             </div>`
         }
-      </div>
-    </div>`;
-  }).join('');
+         </div>
+  </div>
+</div>`;
+}).join('');
 }
 
 function onActionNote(auditId, questionId, note) {
