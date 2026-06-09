@@ -905,6 +905,7 @@ function renderActionsList() {
           📅 Audit réalisé le ${new Date(nc.date).toLocaleDateString('fr-FR',{day:'numeric',month:'long',year:'numeric'})}
           ${!nc.launched && !nc.resolved ? `· <span style="color:var(--major)">⏱ ${Math.floor((Date.now()-new Date(nc.date))/(1000*60*60*24))} jour(s) sans action</span>` : ''}
           ${nc.launched && !nc.resolved ? `· <span style="color:var(--concern)">🚀 Action launched on ${new Date(S.actionsTracker?.[nc.auditId]?.questions?.[nc.questionId]?.launchedAt).toLocaleDateString('fr-FR',{day:'numeric',month:'long',year:'numeric'})}</span>` : ''}
+          ${nc.launched || nc.resolved ? `· <span style="color:var(--concern)">🚀 Action launched on ${new Date(S.actionsTracker?.[nc.auditId]?.questions?.[nc.questionId]?.launchedAt).toLocaleDateString('fr-FR',{day:'numeric',month:'long',year:'numeric'})}</span>` : ''}
           ${nc.resolved ? `· <span style="color:var(--good)">✓ Resolved on ${new Date(S.actionsTracker?.[nc.auditId]?.questions?.[nc.questionId]?.resolvedAt).toLocaleDateString('fr-FR',{day:'numeric',month:'long',year:'numeric'})}</span>` : ''}
         </div>
         ${nc.resolved?'':'<textarea class="comment-input" rows="2" placeholder="Notes on progress…" oninput="onActionNote(\''+nc.auditId+'\',\''+nc.questionId+'\',this.value)">'+escHtml(nc.note)+'</textarea>'}
