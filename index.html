@@ -873,6 +873,7 @@ function renderActionsList() {
       comment: nc.comment||'',
       hasPhotos: nc.hasPhotos||false,
       resolved: tracker?.resolved || false,
+      launched: tracker?.launched || false,
       note: tracker?.note || ''
     });
   });
@@ -929,7 +930,17 @@ function onActionNote(auditId, questionId, note) {
   S.actionsTracker[auditId].questions[questionId].note = note;
   saveActionsTracker();
 }
-
+async function markActionLaunched(auditId, questionId) {
+  if (!S.actionsTracker) S.actionsTracker = {};
+  if (!S.actionsTracker[auditId]) S.actionsTracker[auditId] = {questions:{}};
+  if (!S.actionsTracker[auditId].questions) S.actionsTracker[auditId].questions = {};
+  if (!S.actionsTracker[auditId].questions[questionId]) S.actionsTracker[auditId].questions[questionId] = {};
+  S.actionsTracker[auditId].questions[questionId].launched = true;
+  S.actionsTracker[auditId].questions[questionId].launchedAt = Date.now();
+  await saveActionsTracker();
+  renderActionsList();
+  showToast('Action corrective lancée 🚀');
+}
 async function markActionResolved(auditId, questionId) {
   if (!confirm('Are you sure this has been resolved?')) return;
   if (!S.actionsTracker) S.actionsTracker = {};
