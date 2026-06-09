@@ -904,9 +904,17 @@ function renderActionsList() {
         ${nc.resolved?`<div style="font-size:12px;color:var(--good);margin-top:6px">✓ Résolu${nc.note?' · '+escHtml(nc.note):''}</div>`:''}
       </div>
       <div style="border-top:.5px solid var(--border)">
-        ${!nc.resolved
-          ? `<button style="width:100%;padding:12px;background:var(--good-bg);color:var(--good);border:none;cursor:pointer;font-size:13px;font-family:'DM Sans',sans-serif;font-weight:500" onclick="markActionResolved('${nc.auditId}','${nc.questionId}')">✓ Mark as resolved</button>`
-          : `<button style="width:100%;padding:12px;background:var(--bg3);color:var(--text3);border:none;cursor:pointer;font-size:13px;font-family:'DM Sans',sans-serif" onclick="markActionUnresolved('${nc.auditId}','${nc.questionId}')">↩ Réouvrir</button>`
+       ${nc.resolved
+          ? `<button style="width:100%;padding:12px;background:var(--bg3);color:var(--text3);border:none;cursor:pointer;font-size:13px;font-family:'DM Sans',sans-serif" onclick="markActionUnresolved('${nc.auditId}','${nc.questionId}')">↩ Réouvrir</button>`
+          : nc.launched
+          ? `<div style="display:flex;border-top:.5px solid var(--border)">
+              <button style="flex:1;padding:12px;background:var(--concern-bg);color:var(--concern);border:none;cursor:pointer;font-size:13px;font-family:'DM Sans',sans-serif;font-weight:500">⏳ Action en cours</button>
+              <button style="flex:1;padding:12px;background:var(--good-bg);color:var(--good);border:none;border-left:.5px solid var(--border);cursor:pointer;font-size:13px;font-family:'DM Sans',sans-serif;font-weight:500" onclick="markActionResolved('${nc.auditId}','${nc.questionId}')">✓ Résolu</button>
+            </div>`
+          : `<div style="display:flex">
+              <button style="flex:1;padding:12px;background:var(--concern-bg);color:var(--concern);border:none;cursor:pointer;font-size:13px;font-family:'DM Sans',sans-serif;font-weight:500" onclick="markActionLaunched('${nc.auditId}','${nc.questionId}')">🚀 Launch corrective action</button>
+              <button style="flex:1;padding:12px;background:var(--good-bg);color:var(--good);border:none;border-left:.5px solid var(--border);cursor:pointer;font-size:13px;font-family:'DM Sans',sans-serif;font-weight:500" onclick="markActionResolved('${nc.auditId}','${nc.questionId}')">✓ Mark as resolved</button>
+            </div>`
         }
       </div>
     </div>`;
