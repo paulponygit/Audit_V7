@@ -441,7 +441,7 @@
 const CONFIG = {
   CLIENT_ID: '798980765725-mah2f7vh8bgohaeesbq7mlauhr9l3tba.apps.googleusercontent.com',
   DRIVE_FOLDER_ID: '171pYo5m2xodVxGZxR_a88YU0LmK726vz',
-  SCOPES: 'https://www.googleapis.com/auth/drive',
+  SCOPES: 'https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile',
   TOKEN_TTL_MS: 55 * 60 * 1000 // 55 min
 };
 
@@ -622,9 +622,10 @@ async function loadHomeData() {
 
 function showHome() {
   if (!S.user) return;
-  const initials = S.user.name.split(' ').map(n=>n[0]).join('').substring(0,2).toUpperCase();
+  const name = S.user.name || S.user.email || 'User';
+  const initials = name.split(' ').map(n=>n[0]).join('').substring(0,2).toUpperCase();
   document.getElementById('user-avatar').textContent = initials;
-  document.getElementById('user-name').textContent = S.user.name;
+  document.getElementById('user-name').textContent = name;
   document.getElementById('user-role-tag').textContent = S.role;
   renderHomeAuditList();
   updateSyncUI(true);
