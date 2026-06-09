@@ -257,6 +257,23 @@
       <span class="topbar-title">Actions correctives</span>
       <span class="topbar-action" id="actions-sort-btn" onclick="toggleActionsSort()">↕ Date</span>
     </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;padding:12px 16px;flex-shrink:0" id="actions-kpis">
+      <div style="background:var(--bg2);border:.5px solid var(--border);border-radius:var(--r2);padding:12px;text-align:center">
+        <div style="font-size:22px;font-weight:300;font-family:'DM Mono',monospace;color:var(--good)" id="kpi-resolved">—</div>
+        <div style="font-size:11px;font-weight:500;color:var(--text);margin-top:4px">Resolved this month</div>
+        <div style="font-size:10px;color:var(--text3);margin-top:2px">NCs raised this month that have been resolved</div>
+      </div>
+      <div style="background:var(--bg2);border:.5px solid var(--border);border-radius:var(--r2);padding:12px;text-align:center">
+        <div style="font-size:22px;font-weight:300;font-family:'DM Mono',monospace;color:var(--concern)" id="kpi-launched">—</div>
+        <div style="font-size:11px;font-weight:500;color:var(--text);margin-top:4px">Action launched</div>
+        <div style="font-size:10px;color:var(--text3);margin-top:2px">Open NCs with a corrective action in progress</div>
+      </div>
+      <div style="background:var(--bg2);border:.5px solid var(--border);border-radius:var(--r2);padding:12px;text-align:center">
+        <div style="font-size:22px;font-weight:300;font-family:'DM Mono',monospace;color:var(--accent2)" id="kpi-avgdays">—</div>
+        <div style="font-size:11px;font-weight:500;color:var(--text);margin-top:4px">Avg. days to resolve</div>
+        <div style="font-size:10px;color:var(--text3);margin-top:2px">Average time between NC detection and resolution</div>
+      </div>
+    </div>
     <div style="padding:10px 16px 0;flex-shrink:0">
       <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Tri</div>
       <div style="display:flex;gap:6px;margin-bottom:10px;overflow-x:auto;scrollbar-width:none">
@@ -828,6 +845,42 @@ async function saveGrillesToDrive() {
   } else {
     await uploadFileToDrive(toDataURL(data,'application/json'), 'grilles.json', CONFIG.DRIVE_FOLDER_ID, 'application/json');
   }
+}
+  function updateActionsKpis() {
+  const now = new Date();
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+  const ncs = S.ncIndex || [];
+  const thisMonth = ncs.filter(nc => new Date(nc.date).getTime() >= startOfMonth);
+  const resolvedThisMonth = thisMonth.filter(nc => {
+    const t = S.actionsTracker?.[nc.auditId]?.questions?.[nc.questionId];
+    return t?.resolved && t?.resolvedAt >= startOfMonth;
+  });
+  const pctResolved = thisMonth.length ? Math.round(resolvedThisMonth.length / thisMonth.length * 100) : 0;
+  const open = ncs.filter(nc => {
+    const t = S.actionsTracker?.[nc.auditId]?.questions?.[nc.questionId];
+    return !t?.resolved;
+  });
+  const launched = open.filter(nc => {
+    const t = S.actionsTracker?.[nc.auditId]?.questions?.[nc.questionId];
+    return t?.launched;
+  });
+  const pctLaunched = open.length ? Math.round(launched.length / open.length * 100) : 0;
+  const resolved = ncs.filter(nc => {
+    const t = S.actionsTracker?.[nc.auditId]?.questions?.[nc.questionId];
+    return t?.resolved && t?.resolvedAt;
+  });
+  const avgDays = resolved.length ? Math.round(
+    resolved.reduce((sum, nc) => {
+      const t = S.actionsTracker?.[nc.auditId]?.questions?.[nc.questionId];
+      return sum + (t.resolvedAt - new Date(nc.date).getTime()) / (1000*60*60*24);
+    }, 0) / resolved.length
+  ) : 0;
+  const k1 = document.getElementById('kpi-resolved');
+  const k2 = document.getElementById('kpi-launched');
+  const k3 = document.getElementById('kpi-avgdays');
+  if (k1) k1.textContent = pctResolved + '%';
+  if (k2) k2.textContent = pctLaunched + '%';
+  if (k3) k3.textContent = avgDays > 0 ? avgDays + 'd' : '—';
 }
 async function showActionsCorrectives() {
   showScreen('screen-actions');
