@@ -272,6 +272,9 @@
         <button class="filter-chip" id="filter-opportunity-btn" onclick="setActionsFilter('opportunity')">⚪ Opportunity</button>
       </div>
     </div>
+    <div style="padding:0 16px 10px">
+      <button class="btn btn-ghost" style="width:100%;font-size:13px" onclick="exportActionsCSV()">↓ Export CSV</button>
+    </div>
     <div id="actions-list" style="padding:0 0 40px"></div>
   </div>
   <!-- GRILLES -->
@@ -927,8 +930,25 @@ function renderActionsList() {
   </div>
 </div>`;
 }).join('');
+  
 }
-
+function exportActionsCSV() {
+  const rows = [['City', 'Question', 'NC Detected', 'Action Launched', 'Action Resolved']];
+  (S.ncIndex || []).forEach(nc => {
+    const tracker = S.actionsTracker?.[nc.auditId]?.questions?.[nc.questionId];
+    const detected = new Date(nc.date).toLocaleDateString('en-GB');
+    const launched = tracker?.launchedAt ? new Date(tracker.launchedAt).toLocaleDateString('en-GB') : '-';
+    const resolved = tracker?.resolvedAt ? new Date(tracker.resolvedAt).toLocaleDateString('en-GB') : '-';
+    rows.push([nc.site, `"${nc.questionText.replace(/"/g,'""')}"`, detected, launched, resolved]);
+  });
+  const csv = rows.map(r => r.join(',')).join('\n');
+  const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'corrective_actions.csv';
+  a.click(); URL.revokeObjectURL(url);
+  showToast('Export CSV ✓');
+}
 function onActionNote(auditId, questionId, note) {
   if (!S.actionsTracker) S.actionsTracker = {};
   if (!S.actionsTracker[auditId]) S.actionsTracker[auditId] = {questions:{}};
