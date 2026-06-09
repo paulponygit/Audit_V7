@@ -1185,7 +1185,12 @@ async function openAuditFromDrive(folderId, auditId) {
     if (audit) { audit.driveFolderId = folderId; await dbPut('audits', audit); }
   }
   if (!audit) { showToast('Impossible de charger l\'audit'); return; }
-  if (!S.myAudits.find(a=>a.id===audit.id)) S.myAudits.push(audit);
+  // Update in allAudits and myAudits with full data
+  const idxAll = S.allAudits.findIndex(a=>a.id===audit.id);
+  if (idxAll>=0) S.allAudits[idxAll] = audit;
+  const idxMy = S.myAudits.findIndex(a=>a.id===audit.id);
+  if (idxMy>=0) S.myAudits[idxMy] = audit;
+  else S.myAudits.push(audit);
   S.currentAuditId = audit.id;
   renderAuditScreen(audit);
   showScreen('screen-audit');
