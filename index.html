@@ -1409,7 +1409,6 @@ function toggleEl(id) { document.getElementById(id)?.classList.toggle('open'); }
 function renderActionsTab(audit, grille) {
   const tab = document.getElementById('audit-tab-actions');
   if (!grille) { tab.innerHTML='<div class="empty">Grille introuvable.</div>'; return; }
-  const isLocked = audit.status==='complete' && S.role==='user';
   const items = [];
   grille.sections.forEach(s => s.criteria.forEach(c => {
     if (c.type!=='Iso') return;
@@ -1419,25 +1418,19 @@ function renderActionsTab(audit, grille) {
       if (!tracker?.resolved) items.push({c,ans});
     }
   }));
-  if (!items.length) { tab.innerHTML='<div class="empty">Aucune action corrective ✓</div>'; return; }
+  if (!items.length) { tab.innerHTML='<div class="empty">✓ No corrective actions pending</div>'; return; }
   tab.innerHTML = items.map(({c,ans}) => {
-    const lvl = ISO_MAP[ans.val]; const res = ans.resolved;
-    return `<div class="action-block ${res?'action-resolved':''}">
-      <div style="padding:14px 16px;display:flex;align-items:flex-start;gap:10px">
-        <div style="flex:1"><div style="font-size:13px;font-weight:500;margin-bottom:6px">${escHtml(c.text)}</div>
-          ${res?`<span class="badge b-good" style="margin-left:6px">✓ Resolved</span>`:''}
-        </div>
+    const tracker = S.actionsTracker?.[audit.id]?.questions?.[c.id];
+    const launched = tracker?.launched || false;
+    return `<div class="action-block">
+      <div style="padding:14px 16px">
+        <div style="font-size:13px;font-weight:500;margin-bottom:6px">${escHtml(c.text)}</div>
+        <span class="badge b-${ans.val}">${ISO_MAP[ans.val]?.label}</span>
+        ${ans.comment?`<div style="font-size:12px;color:var(--text2);margin-top:6px;font-style:italic">"${escHtml(ans.comment)}"</div>`:''}
       </div>
-      ${res?`<div style="padding:0 16px 14px;border-top:.5px solid var(--border)">
-        <div style="font-size:12px;color:var(--text2);margin-bottom:4px">→ <span class="badge b-${res.iso}">${ISO_MAP[res.iso]?.label}</span></div>
-        ${res.comment?`<div style="font-size:12px;color:var(--text2);margin-top:6px">${escHtml(res.comment)}</div>`:''}
-        ${res.photos?.length?`<div class="photo-zone" style="margin-top:8px">${res.photos.map(p=>`<div class="photo-thumb"><img src="${p}"></div>`).join('')}</div>`:''}
-      ${S.actionsTracker?.[audit.id]?.questions?.[c.id]?.resolved ? 
-  `<div style="padding:8px 16px 14px;border-top:.5px solid var(--border);font-size:12px;color:var(--good)">✓ Resolved on ${new Date(S.actionsTracker[audit.id].questions[c.id].resolvedAt).toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'})}</div>` :
-  S.actionsTracker?.[audit.id]?.questions?.[c.id]?.launched ?
-  `<div style="padding:8px 16px 14px;border-top:.5px solid var(--border);font-size:12px;color:var(--concern)">🚀 Action in progress</div>` :
-  `<div style="padding:8px 16px 14px;border-top:.5px solid var(--border);font-size:12px;color:var(--text3)">→ Go to Corrective Actions to resolve</div>`
-}
+      <div style="padding:8px 16px 14px;border-top:.5px solid var(--border);font-size:12px;color:${launched?'var(--concern)':'var(--text3)'}">
+        ${launched ? '🚀 Action in progress' : '→ Go to Corrective Actions to resolve'}
+      </div>
     </div>`;
   }).join('');
 }
