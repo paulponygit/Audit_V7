@@ -900,16 +900,21 @@ function renderActionsList() {
           <span class="badge b-${nc.level}">${ISO_MAP[nc.level]?.label}</span>
         </div>
         <div style="font-size:13px;color:var(--text);margin-bottom:8px;line-height:1.5">${escHtml(nc.questionText)}</div>
-        ${nc.comment?`<div style="font-size:12px;color:var(--text2);margin-bottom:8px;font-style:italic">"${escHtml(nc.comment)}"</div>`:''}
-        ${nc.resolved?'':'<textarea class="comment-input" rows="2" placeholder="Notes sur l\'avancement…" oninput="onActionNote(\''+nc.auditId+'\',\''+nc.questionId+'\',this.value)">'+escHtml(nc.note)+'</textarea>'}
-        ${nc.resolved?`<div style="font-size:12px;color:var(--good);margin-top:6px">✓ Résolu${nc.note?' · '+escHtml(nc.note):''}</div>`:''}
-      </div>
+       ${nc.comment?`<div style="font-size:12px;color:var(--text2);margin-bottom:8px;font-style:italic">"${escHtml(nc.comment)}"</div>`:''}
+        <div style="font-size:12px;color:var(--text2);margin-bottom:8px">
+          📅 Audit réalisé le ${new Date(nc.date).toLocaleDateString('fr-FR',{day:'numeric',month:'long',year:'numeric'})}
+          ${!nc.launched && !nc.resolved ? `· <span style="color:var(--major)">⏱ ${Math.floor((Date.now()-new Date(nc.date))/(1000*60*60*24))} jour(s) sans action</span>` : ''}
+          ${nc.launched && !nc.resolved ? `· <span style="color:var(--concern)">🚀 Action launched on ${new Date(S.actionsTracker?.[nc.auditId]?.questions?.[nc.questionId]?.launchedAt).toLocaleDateString('fr-FR',{day:'numeric',month:'long',year:'numeric'})}</span>` : ''}
+          ${nc.resolved ? `· <span style="color:var(--good)">✓ Resolved on ${new Date(S.actionsTracker?.[nc.auditId]?.questions?.[nc.questionId]?.resolvedAt).toLocaleDateString('fr-FR',{day:'numeric',month:'long',year:'numeric'})}</span>` : ''}
+        </div>
+        ${nc.resolved?'':'<textarea class="comment-input" rows="2" placeholder="Notes on progress…" oninput="onActionNote(\''+nc.auditId+'\',\''+nc.questionId+'\',this.value)">'+escHtml(nc.note)+'</textarea>'}
+        ${nc.resolved?`<div style="font-size:12px;color:var(--good);margin-top:6px">✓ Resolved${nc.note?' · '+escHtml(nc.note):''}</div>`:''}
       <div style="border-top:.5px solid var(--border)">
        ${nc.resolved
-          ? `<button style="width:100%;padding:12px;background:var(--bg3);color:var(--text3);border:none;cursor:pointer;font-size:13px;font-family:'DM Sans',sans-serif" onclick="markActionUnresolved('${nc.auditId}','${nc.questionId}')">↩ Réouvrir</button>`
+          ? `<button style="width:100%;padding:12px;background:var(--bg3);color:var(--text3);border:none;cursor:pointer;font-size:13px;font-family:'DM Sans',sans-serif" onclick="markActionUnresolved('${nc.auditId}','${nc.questionId}')">↩ Reopen</button>`
           : nc.launched
           ? `<div style="display:flex;border-top:.5px solid var(--border)">
-              <button style="flex:1;padding:12px;background:var(--concern-bg);color:var(--concern);border:none;cursor:pointer;font-size:13px;font-family:'DM Sans',sans-serif;font-weight:500">⏳ Action en cours</button>
+              <button style="flex:1;padding:12px;background:var(--concern-bg);color:var(--concern);border:none;cursor:pointer;font-size:13px;font-family:'DM Sans',sans-serif;font-weight:500">⏳ Action in progress </button>
               <button style="flex:1;padding:12px;background:var(--good-bg);color:var(--good);border:none;border-left:.5px solid var(--border);cursor:pointer;font-size:13px;font-family:'DM Sans',sans-serif;font-weight:500" onclick="markActionResolved('${nc.auditId}','${nc.questionId}')">✓ Résolu</button>
             </div>`
           : `<div style="display:flex">
@@ -939,7 +944,7 @@ async function markActionLaunched(auditId, questionId) {
   S.actionsTracker[auditId].questions[questionId].launchedAt = Date.now();
   await saveActionsTracker();
   renderActionsList();
-  showToast('Action corrective lancée 🚀');
+  showToast('Corrective action launched 🚀');
 }
 async function markActionResolved(auditId, questionId) {
   if (!confirm('Are you sure this has been resolved?')) return;
@@ -964,7 +969,7 @@ async function markActionUnresolved(auditId, questionId) {
   await saveActionsTracker();
   renderActionsList();
   updateActionsCorrectivestBtn();
-  showToast('Action réouverte');
+  showToast('Action reopened');
 }
 
 async function saveActionsTracker() {
