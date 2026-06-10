@@ -475,6 +475,7 @@ let S = {
   actionsTracker: {},
   rapportsCache: {},
   ncIndex: [],
+  photoUrlCache: {},
 };
 
 // ===================================================
@@ -812,6 +813,30 @@ async function loadJsonFromFolder(folderId, filename) {
   });
   if (!r.ok) throw new Error('media '+r.status);
   return await r.json();
+}
+  async function resolveAuditPhotos(audit) {
+  if (!audit?.driveFolderId || !isTokenValid()) return false;
+  if (!S.photoUrlCache) S.photoUrlCache = {};
+  let loaded = false;
+  for (const ans of Object.values(audit.answers || {})) {
+    if (!ans?.photos) continue;
+    for (const p of ans.photos) {
+      if (typeof p !== 'string' || p.startsWith('data:') || p.startsWith('blob:')) continue;
+      const key = audit.driveFolderId + '/' + p;
+      if (S.photoUrlCache[key]) continue;
+      try {
+        const q = `name='${p}' and '${audit.driveFolderId}' in parents and trashed=false`;
+        const res = await driveRequest(`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id)`);
+        if (res.files?.length) {
+          const r = await fetch(`https://www.googleapis.com/drive/v3/files/${res.files[0].id}?alt=media&supportsAllDrives=true`, {
+            headers: {'Authorization': 'Bearer ' + S.accessToken}
+          });
+          if (r.ok) { S.photoUrlCache[key] = URL.createObjectURL(await r.blob()); loaded = true; }
+        }
+      } catch(e) { console.warn('resolveAuditPhotos', p, e); }
+    }
+  }
+  return loaded;
 }
 
 // ===================================================
@@ -1238,6 +1263,9 @@ function renderAuditScreen(audit) {
   document.getElementById('audit-tab-summary').style.display='none';
   renderQuestionsTab(audit, grille, isLocked);
   updateActionsCount(audit);
+  resolveAuditPhotos(audit).then(loaded => {
+    if (loaded && S.currentAuditId === audit.id) renderQuestionsTab(audit, grille, isLocked);
+  });
 }
 
 // ===================================================
@@ -1311,11 +1339,14 @@ function buildIsoHtml(cId, ans, locked) {
 
 function buildPhotoHtml(cId, ans, locked) {
   const photos = ans.photos||[];
+  const _aud = getAudit();
+  const _fid = _aud?.driveFolderId;
   let h = `<div class="photo-zone" id="pz-${cId}">`;
-  photos.forEach((p,i) => { h+=`<div class="photo-thumb"><img src="${p}">${!locked?`<div class="del-photo" onclick="onDeletePhoto('${cId}',${i})">×</div>`:''}</div>`; });
-  if (!locked) h+=`<div class="photo-add-btn" onclick="onAddPhoto('${cId}')"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z"/><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0z"/></svg><span class="photo-add-label">Photo</span></div>`;
-  return h+'</div>';
-}
+  photos.forEach((p,i) => {
+    let src = p;
+    if (p && !p.startsWith('data:') && !p.startsWith('blob:') && _fid && S.photoUrlCache?.[_fid+'/'+p]) src = S.photoUrlCache[_fid+'/'+p];
+    h+=`<div class="photo-thumb"><img src="${src}">${!locked?`<div class="del-photo" onclick="onDeletePhoto('${cId}',${i})">×</div>`:''}</div>`;
+  });
 
 // ===================================================
 // ANSWER HANDLERS
