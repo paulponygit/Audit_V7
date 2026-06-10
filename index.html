@@ -436,8 +436,13 @@
 <div id="photo-viewer">
   <div id="photo-viewer-bar">
     <span style="font-size:13px;color:#fff;cursor:pointer" onclick="closePhotoViewer()">← Retour</span>
+    <span id="photo-viewer-counter" style="flex:1;text-align:center;font-size:13px;color:#fff;font-family:'DM Mono',monospace"></span>
   </div>
   <img id="photo-viewer-img" src="">
+  <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:space-between;padding:0 8px;pointer-events:none;top:50px">
+    <span id="photo-viewer-prev" style="font-size:32px;color:#fff;cursor:pointer;pointer-events:all;background:rgba(0,0,0,.4);border-radius:50%;width:44px;height:44px;display:flex;align-items:center;justify-content:center" onclick="_photoViewerIdx--;_renderPhotoViewer()">‹</span>
+    <span id="photo-viewer-next" style="font-size:32px;color:#fff;cursor:pointer;pointer-events:all;background:rgba(0,0,0,.4);border-radius:50%;width:44px;height:44px;display:flex;align-items:center;justify-content:center" onclick="_photoViewerIdx++;_renderPhotoViewer()">›</span>
+  </div>
 </div>
 <div class="toast" id="toast"></div>
 <input type="file" id="photo-input" accept="image/*" capture="environment" style="display:none">
@@ -1455,15 +1460,28 @@ function loadHistory(panelId, cId) {
   panel.classList.add('open');
 }
 
+let _photoViewerList = [];
+let _photoViewerIdx = 0;
+
 function openPhotoViewer(src) {
-  document.getElementById('photo-viewer-img').src = src;
+  // Collecte toutes les photos visibles dans l'audit
+  const imgs = [...document.querySelectorAll('#audit-tab-questions .photo-thumb img')].map(i=>i.src).filter(s=>s&&!s.endsWith('#'));
+  _photoViewerList = imgs.length ? imgs : [src];
+  _photoViewerIdx = Math.max(0, _photoViewerList.indexOf(src));
+  _renderPhotoViewer();
   document.getElementById('photo-viewer').classList.add('open');
+}
+function _renderPhotoViewer() {
+  document.getElementById('photo-viewer-img').src = _photoViewerList[_photoViewerIdx] || '';
+  document.getElementById('photo-viewer-counter').textContent = _photoViewerList.length > 1 ? `${_photoViewerIdx+1} / ${_photoViewerList.length}` : '';
+  document.getElementById('photo-viewer-prev').style.visibility = _photoViewerIdx > 0 ? 'visible' : 'hidden';
+  document.getElementById('photo-viewer-next').style.visibility = _photoViewerIdx < _photoViewerList.length-1 ? 'visible' : 'hidden';
 }
 function closePhotoViewer() {
   document.getElementById('photo-viewer').classList.remove('open');
   document.getElementById('photo-viewer-img').src = '';
+  _photoViewerList = [];
 }
-function toggleEl(id) { document.getElementById(id)?.classList.toggle('open'); }
 
 // ===================================================
 // ACTIONS TAB
