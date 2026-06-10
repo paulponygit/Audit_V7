@@ -198,7 +198,6 @@
         <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-top:2px">En cours</div>
       </div>
     </div>
-    <div style="padding:0 20px;margin-bottom:8px;font-size:10px;font-weight:500;color:var(--text3);text-transform:uppercase;letter-spacing:.08em">Mes derniers audits</div>
     <div id="home-audit-list" style="padding-bottom:10px"></div>
     <div style="margin:4px 16px 80px">
       <div style="padding:12px 14px;background:var(--bg2);border:.5px solid var(--border);border-radius:var(--r);font-size:13px;color:var(--accent2);cursor:pointer;text-align:center" onclick="showAllAudits()">Voir tous les audits →</div>
@@ -664,12 +663,12 @@ function renderHomeAuditList() {
   let html = '';
 
   if (inProgress.length) {
-    html += `<div style="padding:0 20px;margin-bottom:8px;font-size:10px;font-weight:500;color:var(--concern);text-transform:uppercase;letter-spacing:.08em">En cours</div>`;
+    html += `<div style="padding:0 20px;margin-bottom:8px;font-size:10px;font-weight:500;color:var(--concern);text-transform:uppercase;letter-spacing:.08em">⏳ En cours</div>`;
     html += inProgress.map(a => renderAuditCard(a)).join('');
   }
 
   if (recent.length) {
-    html += `<div style="padding:0 20px;margin:${inProgress.length?'14px':'0px'} 0 8px;font-size:10px;font-weight:500;color:var(--text3);text-transform:uppercase;letter-spacing:.08em">Derniers audits</div>`;
+    html += `<div style="padding:0 20px;margin:${inProgress.length?'14px':'0px'} 0 8px;font-size:10px;font-weight:500;color:var(--text);text-transform:uppercase;letter-spacing:.08em">Derniers audits</div>`;
     html += recent.map(a => renderAuditCard(a)).join('');
   }
 
