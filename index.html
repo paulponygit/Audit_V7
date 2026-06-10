@@ -1222,10 +1222,14 @@ async function openAuditFromDrive(folderId, auditId) {
   showScreen('screen-audit');
 }
 
-function openAudit(id) {
-  S.currentAuditId = id;
+async function openAudit(id) {
   const audit = S.myAudits.find(a=>a.id===id) || S.allAudits.find(a=>a.id===id);
   if (!audit) { showToast('Audit introuvable'); return; }
+  if ((!audit.answers || Object.keys(audit.answers).length === 0) && audit.driveFolderId && isTokenValid()) {
+    const rapport = await loadJsonFromFolder(audit.driveFolderId, 'rapport.json');
+    if (rapport) { Object.assign(audit, rapport); await dbPut('audits', audit); }
+  }
+  S.currentAuditId = audit.id;
   renderAuditScreen(audit);
   showScreen('screen-audit');
 }
