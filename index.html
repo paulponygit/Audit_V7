@@ -1276,10 +1276,12 @@ function renderAuditScreen(audit) {
       audit.status='pending'; await dbPut('audits',audit); await syncAuditToDrive(audit); renderAuditScreen(audit); showToast('Audit rouvert');
     };
   } else { action.textContent=''; action.onclick=null; }
-  document.getElementById('btn-back-audit').onclick = () => { 
-    syncAuditToDrive(audit); 
+  document.getElementById('btn-back-audit').onclick = () => {
+    if (audit.status !== 'complete') {
+      syncAuditToDrive(audit).then(() => showToast('Audit enregistré ✓'));
+    }
     if (S._cameFromAllAudits) { S._cameFromAllAudits = false; showAllAudits(); }
-    else showHome(); 
+    else showHome();
   };
   const saveBtn = document.getElementById('btn-save-draft');
   saveBtn.onclick = async () => {
@@ -1293,8 +1295,9 @@ function renderAuditScreen(audit) {
     if (S._cameFromAllAudits) { S._cameFromAllAudits = false; showAllAudits(); }
     else showHome();
   };
-  document.getElementById('btn-save-draft').style.display = isLocked?'none':'';
-  document.getElementById('btn-submit').style.display = isLocked?'none':'';
+  const isComplete = audit.status === 'complete';
+  document.getElementById('btn-save-draft').style.display = isComplete?'none':'';
+  document.getElementById('btn-submit').style.display = isComplete?'none':'';
   document.getElementById('btn-submit').onclick = () => submitAudit(audit, grille);
   // Tabs
   document.querySelectorAll('#audit-tabs .tab').forEach(t => {
