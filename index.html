@@ -245,7 +245,7 @@
           <span class="audit-prog-nums" id="prog-pct">0%</span>
         </div>
         <div style="display:flex;gap:8px">
-          <button class="btn btn-ghost" style="flex:1" id="btn-save-draft">Enregistrer</button>
+          <button class="btn btn-ghost" style="flex:1;transition:opacity .3s" id="btn-save-draft">Enregistrer</button>
           <button class="btn btn-main" style="flex:2" id="btn-submit">Envoyer ✓</button>
         </div>
       </div>
@@ -1281,7 +1281,18 @@ function renderAuditScreen(audit) {
     if (S._cameFromAllAudits) { S._cameFromAllAudits = false; showAllAudits(); }
     else showHome(); 
   };
-  document.getElementById('btn-save-draft').onclick = async () => { await syncAuditToDrive(audit); showToast('Enregistré'); };
+  const saveBtn = document.getElementById('btn-save-draft');
+  saveBtn.onclick = async () => {
+    await syncAuditToDrive(audit);
+    saveBtn.textContent = '✓ Enregistré';
+    saveBtn.style.opacity = '0.4';
+    showToast('Audit enregistré ✓');
+  };
+  document.getElementById('btn-back-audit').onclick = () => {
+    syncAuditToDrive(audit).then(() => showToast('Audit enregistré ✓'));
+    if (S._cameFromAllAudits) { S._cameFromAllAudits = false; showAllAudits(); }
+    else showHome();
+  };
   document.getElementById('btn-save-draft').style.display = isLocked?'none':'';
   document.getElementById('btn-submit').style.display = isLocked?'none':'';
   document.getElementById('btn-submit').onclick = () => submitAudit(audit, grille);
@@ -1416,8 +1427,8 @@ function onIsoClick(cId, val) {
     if (!existingPZ) { const d=document.createElement('div'); d.innerHTML=buildPhotoHtml(cId,audit.answers[cId],false); block.appendChild(d.firstChild); }
     if (!existingTA) { const ta=document.createElement('textarea'); ta.className='comment-input'; ta.rows=2; ta.placeholder='Commentaire…'; ta.oninput=e=>onCommentInput(cId,e.target.value); block.appendChild(ta); }
   } else { existingEvidence?.remove(); existingPZ?.remove(); existingTA?.remove(); }
-  const grille = S.grilles.find(g=>g.id===audit.grilleId||g.name===(audit.grilleName||audit.grille));
-  updateProgress(audit, grille); updateActionsCount(audit);
+  const sb = document.getElementById('btn-save-draft');
+  if (sb) { sb.textContent = 'Enregistrer'; sb.style.opacity = '1'; }
 }
   function onDualInput(cId, field, val) {
   const audit = ensureAns(cId);
@@ -1431,6 +1442,8 @@ function onCommentInput(cId, val) {
   dbPut('audits', audit);
   const req = document.getElementById('evreq-'+cId);
   if (req) req.style.display = val ? 'none' : '';
+  const sb = document.getElementById('btn-save-draft');
+  if (sb) { sb.textContent = 'Enregistrer'; sb.style.opacity = '1'; }
 }
 function onAddPhoto(cId) { S.photoTarget = cId; document.getElementById('photo-input').click(); }
 function onDeletePhoto(cId, idx) {
