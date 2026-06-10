@@ -1778,9 +1778,7 @@ async function deleteAudit(auditId) {
           await driveRequest(`https://www.googleapis.com/drive/v3/files/${folderId}`, 'DELETE');
         } catch(e) {
           if (e.message.includes('404')) {
-            // Search by finding rapport.json with matching audit id
-            folderId = await findAuditFolderByContent(audit.id);
-            if (folderId) await driveRequest(`https://www.googleapis.com/drive/v3/files/${folderId}`, 'DELETE');
+            console.warn('Dossier Drive introuvable, suppression locale uniquement');
           } else { throw e; }
         }
       }
