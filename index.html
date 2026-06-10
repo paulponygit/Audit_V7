@@ -1655,7 +1655,7 @@ async function syncAuditToDrive(audit) {
     // Get or create folder
     const dateStr = new Date(audit.date).toLocaleDateString('fr-FR');
     const cityFolderId = await getOrCreateFolder(audit.site, CONFIG.DRIVE_FOLDER_ID);
-    const auditFolderName = `${audit.grilleName} - ${dateStr}`;
+    const auditFolderName = `${audit.grilleName} - ${dateStr} - ${audit.id.replace('a_','')}`;
     const folderId = audit.driveFolderId || await getOrCreateFolder(auditFolderName, cityFolderId);
     audit.driveFolderId = folderId;
     // Upload photos, replace dataURLs with filenames
