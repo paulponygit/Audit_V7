@@ -1551,6 +1551,10 @@ let _syncing = false;
 async function syncAuditToDrive(audit) {
   if (!isTokenValid()) { updateSyncUI(false); return; }
   if (_syncing) return;
+  if (!audit.answers || Object.keys(audit.answers).length === 0) {
+    console.warn('syncAuditToDrive: answers vides, upload annulé pour', audit.id);
+    return;
+  }
   _syncing = true;
   try {
     updateSyncUI(null);
