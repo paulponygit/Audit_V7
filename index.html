@@ -1168,6 +1168,7 @@ function renderGrilleDetail(g) {
     </div>`).join('') || '<div class="empty">Aucune section.</div>';
 }
 function toggleSection(id) { document.getElementById(id)?.classList.toggle('open'); }
+function toggleEl(id) { document.getElementById(id)?.classList.toggle('open'); }
 function addSection() {
   const name = prompt('Nom de la section :'); if (!name) return;
   const g = S.grilles.find(g=>g.id===S.currentGrilleId);
