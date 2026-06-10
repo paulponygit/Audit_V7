@@ -1750,8 +1750,11 @@ async function updateAuditsIndex(audit, stats) {
       submittedAt: Date.now()
     });
   }));
-  await uploadOrUpdateJson('nc_index.json', index, CONFIG.DRIVE_FOLDER_ID);
-  S.ncIndex = index;
+  // Safety: never overwrite with smaller index
+  const currentIndex = await loadJsonFromDrive('nc_index.json') || [];
+  const merged = [...currentIndex.filter(nc => nc.auditId !== audit.id), ...index.filter(nc => nc.auditId === audit.id)];
+  await uploadOrUpdateJson('nc_index.json', merged, CONFIG.DRIVE_FOLDER_ID);
+  S.ncIndex = merged;
 }
 
 // ===================================================
@@ -1783,8 +1786,10 @@ async function deleteAudit(auditId) {
         }
       }
       await uploadOrUpdateJson('audits_index.json', S.allAudits, CONFIG.DRIVE_FOLDER_ID);
-      await uploadOrUpdateJson('nc_index.json', (S.ncIndex||[]).filter(nc=>nc.auditId!==auditId), CONFIG.DRIVE_FOLDER_ID);
-      S.ncIndex = (S.ncIndex||[]).filter(nc=>nc.auditId!==auditId);
+      const currentNcIndex = await loadJsonFromDrive('nc_index.json') || [];
+      const updatedNcIndex = currentNcIndex.filter(nc=>nc.auditId!==auditId);
+      await uploadOrUpdateJson('nc_index.json', updatedNcIndex, CONFIG.DRIVE_FOLDER_ID);
+      S.ncIndex = updatedNcIndex;
       showToast('Audit supprimé ✓');
     } catch(e) { showToast('Supprimé en local — erreur Drive: ' + e.message); }
   } else { showToast('Supprimé en local'); }
