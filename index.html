@@ -680,7 +680,7 @@ function renderAuditCard(a, showDelete=false) {
   const g = S.grilles.find(g => g.id === a.grilleId || g.name === (a.grilleName||a.grille));
   const totalQ = g ? g.sections.reduce((s,sec)=>s+sec.criteria.length,0) : 0;
   const answered = Object.values(a.answers||{}).filter(x=>x.val||(x.comment&&x.comment.length)||(x.photos?.length)).length;
-  const compPct = totalQ ? Math.round(answered/totalQ*100) : 0;
+  const compPct = a.stats?.completion ?? (totalQ ? Math.round(answered/totalQ*100) : 0);
   const stats = a.stats || calcScore(a, g);
   const {conformity, majors, minors} = stats;
   const dateStr = new Date(a.date).toLocaleDateString('fr-FR',{day:'numeric',month:'short',year:'numeric'});
@@ -1712,8 +1712,7 @@ async function updateAuditsIndex(audit, stats) {
     grilleId: audit.grilleId, grilleName: audit.grilleName||audit.grille||'',
     date: audit.date, auditor: audit.auditor, status: audit.status,
     driveFolderId: audit.driveFolderId,
-    stats: {conformity: stats.conformity, majors: stats.majors, minors: stats.minors, concerns: stats.concerns}
-  };
+    stats: {conformity: stats.conformity, majors: stats.majors, minors: stats.minors, concerns: stats.concerns, completion: Math.round(Object.values(audit.answers||{}).filter(a=>a.val||(a.comment?.length)||(a.photos?.length)||a.dual1!==undefined).length / Math.max(1, S.grilles.find(g=>g.id===audit.grilleId||g.name===(audit.grilleName||audit.grille))?.sections.reduce((s,sec)=>s+sec.criteria.length,0)||1) * 100)}  };
   // Load current index from Drive
   let driveIndex = await loadJsonFromDrive('audits_index.json') || [];
   // Safety check — never overwrite with a smaller index unless it's the same audit
