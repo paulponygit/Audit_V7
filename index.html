@@ -1730,6 +1730,8 @@ async function deleteAudit(auditId) {
         }
       }
       await uploadOrUpdateJson('audits_index.json', S.allAudits, CONFIG.DRIVE_FOLDER_ID);
+      await uploadOrUpdateJson('nc_index.json', (S.ncIndex||[]).filter(nc=>nc.auditId!==auditId), CONFIG.DRIVE_FOLDER_ID);
+      S.ncIndex = (S.ncIndex||[]).filter(nc=>nc.auditId!==auditId);
       showToast('Audit supprimé ✓');
     } catch(e) { showToast('Supprimé en local — erreur Drive: ' + e.message); }
   } else { showToast('Supprimé en local'); }
