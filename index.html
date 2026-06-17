@@ -1346,10 +1346,10 @@ function buildQuestionHtml(c, num, ans, locked, auditId) {
   let ansHtml = '';
   if (type==='Iso') {
     ansHtml = buildIsoHtml(c.id, ans, locked);
-    if (ans.val && ISO_MAP[ans.val]?.needsEvidence) {
-      if (ans.val && !ISO_MAP[ans.val]?.needsEvidence && !locked) {
+   if (ans.val && !ISO_MAP[ans.val]?.needsEvidence && !locked) {
       ansHtml += `<textarea class="comment-input" rows="2" placeholder="Commentaire optionnel…" oninput="onCommentInput('${c.id}',this.value)">${escHtml(ans.comment||'')}</textarea>`;
     }
+    if (ans.val && ISO_MAP[ans.val]?.needsEvidence) {
       ansHtml += `<div class="evidence-required" id="evreq-${c.id}" style="${(ans.comment||(ans.photos?.length))?'display:none':''}">⚠ Photo ou commentaire requis</div>`;
       ansHtml += buildPhotoHtml(c.id, ans, locked);
       ansHtml += `<textarea class="comment-input" rows="2" placeholder="Commentaire…" ${locked?'disabled':''} oninput="onCommentInput('${c.id}',this.value)">${escHtml(ans.comment||'')}</textarea>`;
