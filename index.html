@@ -1347,13 +1347,17 @@ function buildQuestionHtml(c, num, ans, locked, auditId) {
   if (type==='Iso') {
     ansHtml = buildIsoHtml(c.id, ans, locked);
     if (ans.val && ISO_MAP[ans.val]?.needsEvidence) {
+      if (ans.val && !ISO_MAP[ans.val]?.needsEvidence && !locked) {
+      ansHtml += `<textarea class="comment-input" rows="2" placeholder="Commentaire optionnel…" oninput="onCommentInput('${c.id}',this.value)">${escHtml(ans.comment||'')}</textarea>`;
+    }
       ansHtml += `<div class="evidence-required" id="evreq-${c.id}" style="${(ans.comment||(ans.photos?.length))?'display:none':''}">⚠ Photo ou commentaire requis</div>`;
       ansHtml += buildPhotoHtml(c.id, ans, locked);
       ansHtml += `<textarea class="comment-input" rows="2" placeholder="Commentaire…" ${locked?'disabled':''} oninput="onCommentInput('${c.id}',this.value)">${escHtml(ans.comment||'')}</textarea>`;
     }
-  } else if (type==='Picture') {
+} else if (type==='Picture') {
     ansHtml = buildPhotoHtml(c.id, ans, locked);
     if (!locked && !(ans.photos?.length)) ansHtml += `<div class="evidence-required" id="evreq-${c.id}">⚠ Photo requise</div>`;
+    ansHtml += `<textarea class="comment-input" rows="2" placeholder="Commentaire optionnel…" ${locked?'disabled':''} oninput="onCommentInput('${c.id}',this.value)">${escHtml(ans.comment||'')}</textarea>`;
 } else if (type==='Text') {
     ansHtml = `<textarea class="comment-input" rows="3" placeholder="Texte libre…" ${locked?'disabled':''} oninput="onCommentInput('${c.id}',this.value)">${escHtml(ans.comment||'')}</textarea>`;
   } else if (type==='Date') {
@@ -1432,11 +1436,14 @@ function onIsoClick(cId, val) {
   const existingEvidence = block.querySelector('.evidence-required');
   const existingPZ = document.getElementById('pz-'+cId);
   const existingTA = block.querySelector('textarea.comment-input');
-  if (needsEvidence) {
+if (needsEvidence) {
     if (!existingEvidence) { const d=document.createElement('div'); d.className='evidence-required'; d.id='evreq-'+cId; d.textContent='⚠ Photo ou commentaire requis'; block.appendChild(d); }
     if (!existingPZ) { const d=document.createElement('div'); d.innerHTML=buildPhotoHtml(cId,audit.answers[cId],false); block.appendChild(d.firstChild); }
     if (!existingTA) { const ta=document.createElement('textarea'); ta.className='comment-input'; ta.rows=2; ta.placeholder='Commentaire…'; ta.oninput=e=>onCommentInput(cId,e.target.value); block.appendChild(ta); }
-  } else { existingEvidence?.remove(); existingPZ?.remove(); existingTA?.remove(); }
+  } else {
+    existingEvidence?.remove(); existingPZ?.remove();
+    if (!existingTA) { const ta=document.createElement('textarea'); ta.className='comment-input'; ta.rows=2; ta.placeholder='Commentaire optionnel…'; ta.oninput=e=>onCommentInput(cId,e.target.value); block.appendChild(ta); }
+  }
   const sb = document.getElementById('btn-save-draft');
   if (sb) { sb.textContent = 'Enregistrer'; sb.style.opacity = '1'; }
 }
