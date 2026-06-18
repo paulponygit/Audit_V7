@@ -1471,7 +1471,7 @@ function onDeletePhoto(cId, idx) {
 }
 document.getElementById('photo-input').onchange = async e => {
   const file = e.target.files[0]; if (!file||!S.photoTarget) return;
-  const compressed = await compressImage(await fileToDataURL(file), 900);
+  const compressed = await compressImage(await fileToDataURL(file), 600);
   const audit = ensureAns(S.photoTarget);
   audit.answers[S.photoTarget].photos = audit.answers[S.photoTarget].photos||[];
   audit.answers[S.photoTarget].photos.push(compressed);
@@ -1929,7 +1929,7 @@ function compressImage(dataURL, maxW) {
     const img=new Image(); img.onload=()=>{
       const ratio=Math.min(maxW/img.width,maxW/img.height,1);
       const c=document.createElement('canvas'); c.width=img.width*ratio; c.height=img.height*ratio;
-      c.getContext('2d').drawImage(img,0,0,c.width,c.height); res(c.toDataURL('image/jpeg',.75));
+      c.getContext('2d').drawImage(img,0,0,c.width,c.height); res(c.toDataURL('image/jpeg',.60));
     }; img.src=dataURL;
   });
 }
