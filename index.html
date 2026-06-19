@@ -1498,9 +1498,20 @@ const answered = Object.values(audit.answers||{}).filter(a=>a.val||(a.comment?.l
   document.getElementById('prog-pct').textContent=pct+'%';
 }
 
-function loadHistory(panelId, cId) {
+async function loadHistory(panelId, cId) {
   const panel = document.getElementById(panelId); if (!panel) return;
   if (panel.classList.contains('open')) { panel.classList.remove('open'); return; }
+  // Charger le dernier audit depuis Drive si pas de réponses en mémoire
+  const lastAudit = [...S.myAudits, ...S.allAudits]
+    .filter(a => a.id !== S.currentAuditId && a.driveFolderId)
+    .sort((a,b) => new Date(b.date) - new Date(a.date))[0];
+  if (lastAudit && (!lastAudit.answers || Object.keys(lastAudit.answers).length === 0) && isTokenValid()) {
+    const rapport = await loadJsonFromFolder(lastAudit.driveFolderId, 'rapport.json');
+    if (rapport) {
+      Object.assign(lastAudit, rapport);
+      await dbPut('audits', lastAudit);
+    }
+  }
   const all = [...S.myAudits, ...S.allAudits].filter(a=>a.id!==S.currentAuditId && a.answers?.[cId]?.val);
   if (!all.length) { panel.innerHTML='<div style="font-size:12px;color:var(--text3)">Aucun historique.</div>'; }
   else panel.innerHTML = all.slice(-6).reverse().map(a => {
