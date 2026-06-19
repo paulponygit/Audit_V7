@@ -1512,7 +1512,13 @@ async function loadHistory(panelId, cId) {
       await dbPut('audits', lastAudit);
     }
   }
-  const all = [...S.myAudits, ...S.allAudits].filter(a=>a.id!==S.currentAuditId && a.answers?.[cId]?.val);
+  const seen = new Set();
+  const all = [...S.myAudits, ...S.allAudits].filter(a => {
+    if (a.id === S.currentAuditId || !a.answers?.[cId]?.val) return false;
+    if (seen.has(a.id)) return false;
+    seen.add(a.id);
+    return true;
+  });
   if (!all.length) { panel.innerHTML='<div style="font-size:12px;color:var(--text3)">Aucun historique.</div>'; }
   else panel.innerHTML = all.slice(-6).reverse().map(a => {
     const lvl = ISO_MAP[a.answers[cId].val];
