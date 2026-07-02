@@ -293,16 +293,12 @@
       <div style="display:flex;gap:6px;overflow-x:auto;scrollbar-width:none">
         <button class="filter-chip active" id="sort-date-btn" onclick="setActionsSort('desc')" style="font-size:11px;padding:4px 10px">↓ Récentes</button>
         <button class="filter-chip" id="sort-date-asc-btn" onclick="setActionsSort('asc')" style="font-size:11px;padding:4px 10px">↑ Anciennes</button>
-        <div style="width:.5px;background:var(--border);flex-shrink:0"></div>
+        <div style="width:.5px;background:var(--border2);flex-shrink:0;margin:0 2px"></div>
         <button class="filter-chip active" id="filter-type-all-btn" onclick="toggleActionsTypeFilter('all',this)" style="font-size:11px;padding:4px 10px">Tous</button>
         <button class="filter-chip" id="filter-type-major-btn" onclick="toggleActionsTypeFilter('major',this)" style="font-size:11px;padding:4px 10px">🔴</button>
         <button class="filter-chip" id="filter-type-minor-btn" onclick="toggleActionsTypeFilter('minor',this)" style="font-size:11px;padding:4px 10px">🟠</button>
         <button class="filter-chip" id="filter-type-concern-btn" onclick="toggleActionsTypeFilter('concern',this)" style="font-size:11px;padding:4px 10px">🟡</button>
         <button class="filter-chip" id="filter-type-opportunity-btn" onclick="toggleActionsTypeFilter('opportunity',this)" style="font-size:11px;padding:4px 10px">⚪</button>
-        <div style="width:.5px;background:var(--border);flex-shrink:0"></div>
-        <button class="filter-chip" id="filter-status-pending-btn" onclick="toggleActionsStatusFilter('pending',this)" style="font-size:11px;padding:4px 10px">⏳</button>
-        <button class="filter-chip" id="filter-status-launched-btn" onclick="toggleActionsStatusFilter('launched',this)" style="font-size:11px;padding:4px 10px">🚀</button>
-        <button class="filter-chip" id="filter-status-resolved-btn" onclick="toggleActionsStatusFilter('resolved',this)" style="font-size:11px;padding:4px 10px">✓</button>
       </div>
     </div>
     <div class="kanban-board" id="actions-kanban">
