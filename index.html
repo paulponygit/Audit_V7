@@ -1158,18 +1158,18 @@ async function markActionLaunched(auditId, questionId) {
   if (!S.actionsTracker[auditId].questions[questionId]) S.actionsTracker[auditId].questions[questionId] = {};
   S.actionsTracker[auditId].questions[questionId].launched = true;
   S.actionsTracker[auditId].questions[questionId].launchedAt = Date.now();
-  await saveActionsTracker();
   renderActionsList();
   showToast('Corrective action launched 🚀');
+  saveActionsTracker();
 }
 async function markActionUnlaunched(auditId, questionId) {
   if (!S.actionsTracker?.[auditId]?.questions?.[questionId]) return;
   S.actionsTracker[auditId].questions[questionId].launched = false;
   S.actionsTracker[auditId].questions[questionId].launchedAt = null;
-  await saveActionsTracker();
   renderActionsList();
   updateActionsCorrectivestBtn();
   showToast('Action reopened to pending');
+  saveActionsTracker();
 }
 async function markActionResolved(auditId, questionId) {
   if (!confirm('Are you sure this has been resolved?')) return;
@@ -1179,22 +1179,21 @@ async function markActionResolved(auditId, questionId) {
   if (!S.actionsTracker[auditId].questions[questionId]) S.actionsTracker[auditId].questions[questionId] = {};
   S.actionsTracker[auditId].questions[questionId].resolved = true;
   S.actionsTracker[auditId].questions[questionId].resolvedAt = Date.now();
-  await saveActionsTracker();
   renderActionsList();
   updateActionsCorrectivestBtn();
   showToast('Action résolue ✓');
+  saveActionsTracker();
 }
-
 async function markActionUnresolved(auditId, questionId) {
   if (!S.actionsTracker) S.actionsTracker = {};
   if (!S.actionsTracker[auditId]) S.actionsTracker[auditId] = {questions:{}};
   if (!S.actionsTracker[auditId].questions) S.actionsTracker[auditId].questions = {};
   if (!S.actionsTracker[auditId].questions[questionId]) S.actionsTracker[auditId].questions[questionId] = {};
   S.actionsTracker[auditId].questions[questionId].resolved = false;
-  await saveActionsTracker();
   renderActionsList();
   updateActionsCorrectivestBtn();
   showToast('Action reopened');
+  saveActionsTracker();
 }
 
 async function saveActionsTracker() {
