@@ -277,20 +277,31 @@
         <div style="font-size:10px;color:var(--text3);margin-top:2px">Average time between NC detection and resolution</div>
       </div>
     </div>
-    <div style="padding:10px 16px 0;flex-shrink:0">
+   <div style="padding:10px 16px 0;flex-shrink:0">
       <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Tri</div>
-      <div style="display:flex;gap:6px;margin-bottom:10px;overflow-x:auto;scrollbar-width:none">
-        <button class="filter-chip active" id="sort-date-btn" onclick="setActionsSort('date')">Plus récentes</button>
-        <button class="filter-chip" id="sort-city-btn" onclick="setActionsSort('city')">Par ville</button>
-        <button class="filter-chip" id="sort-open-btn" onclick="setActionsSort('open')">Non résolues</button>
+      <div style="display:flex;gap:6px;margin-bottom:10px">
+        <button class="filter-chip active" id="sort-date-btn" onclick="setActionsSort('desc')">Plus récentes</button>
+        <button class="filter-chip" id="sort-date-asc-btn" onclick="setActionsSort('asc')">Plus anciennes</button>
       </div>
-      <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Filtre</div>
+      <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Ville</div>
+      <div style="margin-bottom:10px">
+        <select id="filter-city-actions" onchange="renderActionsList()" style="width:100%;background:var(--bg3);border:.5px solid var(--border2);border-radius:var(--r);padding:10px 12px;font-size:13px;color:var(--text);font-family:'DM Sans',sans-serif;outline:none;-webkit-appearance:none">
+          <option value="">Toutes les villes</option>
+        </select>
+      </div>
+      <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Type</div>
       <div style="display:flex;gap:6px;margin-bottom:10px;overflow-x:auto;scrollbar-width:none">
-        <button class="filter-chip active" id="filter-all-btn" onclick="setActionsFilter('all')">Tous</button>
-        <button class="filter-chip" id="filter-major-btn" onclick="setActionsFilter('major')">🔴 Major</button>
-        <button class="filter-chip" id="filter-minor-btn" onclick="setActionsFilter('minor')">🟠 Minor</button>
-        <button class="filter-chip" id="filter-concern-btn" onclick="setActionsFilter('concern')">🟡 Concern</button>
-        <button class="filter-chip" id="filter-opportunity-btn" onclick="setActionsFilter('opportunity')">⚪ Opportunity</button>
+        <button class="filter-chip active" id="filter-type-all-btn" onclick="toggleActionsTypeFilter('all',this)">Tous</button>
+        <button class="filter-chip" id="filter-type-major-btn" onclick="toggleActionsTypeFilter('major',this)">🔴 Major</button>
+        <button class="filter-chip" id="filter-type-minor-btn" onclick="toggleActionsTypeFilter('minor',this)">🟠 Minor</button>
+        <button class="filter-chip" id="filter-type-concern-btn" onclick="toggleActionsTypeFilter('concern',this)">🟡 Concern</button>
+        <button class="filter-chip" id="filter-type-opportunity-btn" onclick="toggleActionsTypeFilter('opportunity',this)">⚪ Opportunity</button>
+      </div>
+      <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Statut</div>
+      <div style="display:flex;gap:6px;margin-bottom:10px;overflow-x:auto;scrollbar-width:none">
+        <button class="filter-chip" id="filter-status-pending-btn" onclick="toggleActionsStatusFilter('pending',this)">⏳ Pending</button>
+        <button class="filter-chip" id="filter-status-launched-btn" onclick="toggleActionsStatusFilter('launched',this)">🚀 Launched</button>
+        <button class="filter-chip" id="filter-status-resolved-btn" onclick="toggleActionsStatusFilter('resolved',this)">✓ Resolved</button>
       </div>
     </div>
     <div style="padding:0 16px 10px">
@@ -948,29 +959,54 @@ async function showActionsCorrectives() {
   renderActionsList();
 }
 
-let actionsSortMode = 'date';
-let actionsFilterMode = 'all';
+let actionsSortMode = 'desc';
+let actionsTypeFilter = new Set(['all']);
+let actionsStatusFilter = new Set();
 
 function setActionsSort(mode) {
   actionsSortMode = mode;
-  document.querySelectorAll('#screen-actions .filter-chip').forEach(c => {
-    if (['sort-date-btn','sort-city-btn','sort-open-btn'].includes(c.id)) c.classList.remove('active');
-  });
-  document.getElementById('sort-'+mode+'-btn').classList.add('active');
+  document.getElementById('sort-date-btn').classList.toggle('active', mode === 'desc');
+  document.getElementById('sort-date-asc-btn').classList.toggle('active', mode === 'asc');
   renderActionsList();
 }
 
-function setActionsFilter(mode) {
-  actionsFilterMode = mode;
-  document.querySelectorAll('#screen-actions .filter-chip').forEach(c => {
-    if (['filter-all-btn','filter-major-btn','filter-minor-btn','filter-concern-btn','filter-opportunity-btn'].includes(c.id)) c.classList.remove('active');
-  });
-  document.getElementById('filter-'+mode+'-btn').classList.add('active');
+function toggleActionsTypeFilter(type, btn) {
+  if (type === 'all') {
+    actionsTypeFilter = new Set(['all']);
+    document.querySelectorAll('[id^="filter-type-"]').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+  } else {
+    actionsTypeFilter.delete('all');
+    document.getElementById('filter-type-all-btn').classList.remove('active');
+    if (actionsTypeFilter.has(type)) {
+      actionsTypeFilter.delete(type);
+      btn.classList.remove('active');
+    } else {
+      actionsTypeFilter.add(type);
+      btn.classList.add('active');
+    }
+    if (actionsTypeFilter.size === 0) {
+      actionsTypeFilter.add('all');
+      document.getElementById('filter-type-all-btn').classList.add('active');
+    }
+  }
+  renderActionsList();
+}
+
+function toggleActionsStatusFilter(status, btn) {
+  if (actionsStatusFilter.has(status)) {
+    actionsStatusFilter.delete(status);
+    btn.classList.remove('active');
+  } else {
+    actionsStatusFilter.add(status);
+    btn.classList.add('active');
+  }
   renderActionsList();
 }
 
 function renderActionsList() {
   const list = document.getElementById('actions-list');
+  if (!list) return;
   let allNCs = [];
 
   (S.ncIndex || []).forEach(nc => {
@@ -991,15 +1027,40 @@ function renderActionsList() {
     });
   });
 
-  // Filter
-  if (actionsFilterMode !== 'all') allNCs = allNCs.filter(nc => nc.level === actionsFilterMode);
-  if (actionsSortMode === 'open') allNCs = allNCs.filter(nc => !nc.resolved);
+  // Filtre ville
+  const cityFilter = document.getElementById('filter-city-actions')?.value || '';
+  if (cityFilter) allNCs = allNCs.filter(nc => nc.site === cityFilter);
 
-  // Sort
-  if (actionsSortMode === 'date' || actionsSortMode === 'open') allNCs.sort((a,b) => new Date(b.date) - new Date(a.date));
-  if (actionsSortMode === 'city') allNCs.sort((a,b) => a.site.localeCompare(b.site));
+  // Filtre type
+  if (!actionsTypeFilter.has('all')) {
+    allNCs = allNCs.filter(nc => actionsTypeFilter.has(nc.level));
+  }
 
-  if (!allNCs.length) { list.innerHTML = '<div class="empty">✓ Aucune action corrective</div>'; return; }
+  // Filtre statut (multi-select)
+  if (actionsStatusFilter.size > 0) {
+    allNCs = allNCs.filter(nc => {
+      if (actionsStatusFilter.has('resolved') && nc.resolved) return true;
+      if (actionsStatusFilter.has('launched') && nc.launched && !nc.resolved) return true;
+      if (actionsStatusFilter.has('pending') && !nc.launched && !nc.resolved) return true;
+      return false;
+    });
+  }
+
+  // Tri
+  allNCs.sort((a, b) => actionsSortMode === 'asc'
+    ? new Date(a.date) - new Date(b.date)
+    : new Date(b.date) - new Date(a.date));
+
+  // Populate ville dropdown
+  const citySelect = document.getElementById('filter-city-actions');
+  if (citySelect) {
+    const currentVal = citySelect.value;
+    const cities = [...new Set((S.ncIndex||[]).map(nc => nc.site))].sort();
+    citySelect.innerHTML = '<option value="">Toutes les villes</option>' +
+      cities.map(c => `<option value="${c}" ${c === currentVal ? 'selected' : ''}>${c}</option>`).join('');
+  }
+
+  if (!allNCs.length) { list.innerHTML = '<div class="empty">✓ Aucune action corrective</div>'; updateActionsKpis(); return; }
 
   updateActionsKpis();
   list.innerHTML = allNCs.map(nc => {
@@ -1014,21 +1075,22 @@ function renderActionsList() {
           <span class="badge b-${nc.level}">${ISO_MAP[nc.level]?.label}</span>
         </div>
         <div style="font-size:13px;color:var(--text);margin-bottom:8px;line-height:1.5">${escHtml(nc.questionText)}</div>
-       ${nc.comment?`<div style="font-size:12px;color:var(--text2);margin-bottom:8px;font-style:italic">"${escHtml(nc.comment)}"</div>`:''}
+        ${nc.comment?`<div style="font-size:12px;color:var(--text2);margin-bottom:8px;font-style:italic">"${escHtml(nc.comment)}"</div>`:''}
         <div style="font-size:12px;color:var(--text2);margin-bottom:8px">
           📅 Audit réalisé le ${new Date(nc.date).toLocaleDateString('fr-FR',{day:'numeric',month:'long',year:'numeric'})}
           ${!nc.launched && !nc.resolved ? `· <span style="color:var(--major)">⏱ ${Math.floor((Date.now()-new Date(nc.date))/(1000*60*60*24))} jour(s) sans action</span>` : ''}
-         ${(nc.launched || nc.resolved) && S.actionsTracker?.[nc.auditId]?.questions?.[nc.questionId]?.launchedAt ? `· <span style="color:var(--concern)">🚀 Action launched on ${new Date(S.actionsTracker?.[nc.auditId]?.questions?.[nc.questionId]?.launchedAt).toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'})}</span>` : ''}
+          ${(nc.launched || nc.resolved) && S.actionsTracker?.[nc.auditId]?.questions?.[nc.questionId]?.launchedAt ? `· <span style="color:var(--concern)">🚀 Action launched on ${new Date(S.actionsTracker?.[nc.auditId]?.questions?.[nc.questionId]?.launchedAt).toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'})}</span>` : ''}
           ${nc.resolved && S.actionsTracker?.[nc.auditId]?.questions?.[nc.questionId]?.resolvedAt ? `· <span style="color:var(--good)">✓ Resolved on ${new Date(S.actionsTracker?.[nc.auditId]?.questions?.[nc.questionId]?.resolvedAt).toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'})}</span>` : ''}
         </div>
         ${nc.resolved?'':'<textarea class="comment-input" rows="2" placeholder="Notes on progress…" oninput="onActionNote(\''+nc.auditId+'\',\''+nc.questionId+'\',this.value)">'+escHtml(nc.note)+'</textarea>'}
         ${nc.resolved?`<div style="font-size:12px;color:var(--good);margin-top:6px">✓ Resolved${nc.note?' · '+escHtml(nc.note):''}</div>`:''}
+      </div>
       <div style="border-top:.5px solid var(--border)">
-       ${nc.resolved
+        ${nc.resolved
           ? `<button style="width:100%;padding:12px;background:var(--bg3);color:var(--text3);border:none;cursor:pointer;font-size:13px;font-family:'DM Sans',sans-serif" onclick="markActionUnresolved('${nc.auditId}','${nc.questionId}')">↩ Reopen</button>`
           : nc.launched
-          ? `<div style="display:flex;border-top:.5px solid var(--border)">
-              <button style="flex:1;padding:12px;background:var(--concern-bg);color:var(--concern);border:none;cursor:pointer;font-size:13px;font-family:'DM Sans',sans-serif;font-weight:500">⏳ Action in progress </button>
+          ? `<div style="display:flex">
+              <button style="flex:1;padding:12px;background:var(--concern-bg);color:var(--concern);border:none;cursor:pointer;font-size:13px;font-family:'DM Sans',sans-serif;font-weight:500">⏳ Action in progress</button>
               <button style="flex:1;padding:12px;background:var(--good-bg);color:var(--good);border:none;border-left:.5px solid var(--border);cursor:pointer;font-size:13px;font-family:'DM Sans',sans-serif;font-weight:500" onclick="markActionResolved('${nc.auditId}','${nc.questionId}')">✓ Mark as resolved</button>
             </div>`
           : `<div style="display:flex">
@@ -1036,11 +1098,9 @@ function renderActionsList() {
               <button style="flex:1;padding:12px;background:var(--good-bg);color:var(--good);border:none;border-left:.5px solid var(--border);cursor:pointer;font-size:13px;font-family:'DM Sans',sans-serif;font-weight:500" onclick="markActionResolved('${nc.auditId}','${nc.questionId}')">✓ Mark as resolved</button>
             </div>`
         }
-         </div>
-  </div>
-</div>`;
-}).join('');
-  
+      </div>
+    </div>`;
+  }).join('');
 }
 function exportActionsCSV() {
   const rows = [['City', 'Question', 'NC Type', 'NC Detected', 'Action Launched', 'Action Resolved']];
