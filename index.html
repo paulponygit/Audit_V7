@@ -1088,9 +1088,9 @@ function renderActionsList() {
       <div style="border-top:.5px solid var(--border)">
         ${nc.resolved
           ? `<button style="width:100%;padding:12px;background:var(--bg3);color:var(--text3);border:none;cursor:pointer;font-size:13px;font-family:'DM Sans',sans-serif" onclick="markActionUnresolved('${nc.auditId}','${nc.questionId}')">↩ Reopen</button>`
-          : nc.launched
-          ? `<div style="display:flex">
-              <button style="flex:1;padding:12px;background:var(--concern-bg);color:var(--concern);border:none;cursor:pointer;font-size:13px;font-family:'DM Sans',sans-serif;font-weight:500">⏳ Action in progress</button>
+     : nc.launched
+          ? `<div style="display:flex;border-top:.5px solid var(--border)">
+              <button style="flex:1;padding:12px;background:var(--concern-bg);color:var(--concern);border:none;cursor:pointer;font-size:13px;font-family:'DM Sans',sans-serif;font-weight:500" onclick="markActionUnlaunched('${nc.auditId}','${nc.questionId}')">⏳ Action in progress </button>
               <button style="flex:1;padding:12px;background:var(--good-bg);color:var(--good);border:none;border-left:.5px solid var(--border);cursor:pointer;font-size:13px;font-family:'DM Sans',sans-serif;font-weight:500" onclick="markActionResolved('${nc.auditId}','${nc.questionId}')">✓ Mark as resolved</button>
             </div>`
           : `<div style="display:flex">
@@ -1137,6 +1137,15 @@ async function markActionLaunched(auditId, questionId) {
   await saveActionsTracker();
   renderActionsList();
   showToast('Corrective action launched 🚀');
+}
+async function markActionUnlaunched(auditId, questionId) {
+  if (!S.actionsTracker?.[auditId]?.questions?.[questionId]) return;
+  S.actionsTracker[auditId].questions[questionId].launched = false;
+  S.actionsTracker[auditId].questions[questionId].launchedAt = null;
+  await saveActionsTracker();
+  renderActionsList();
+  updateActionsCorrectivestBtn();
+  showToast('Action reopened to pending');
 }
 async function markActionResolved(auditId, questionId) {
   if (!confirm('Are you sure this has been resolved?')) return;
