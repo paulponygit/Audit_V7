@@ -978,7 +978,9 @@ async function saveGrillesToDrive() {
 }
 async function showActionsCorrectives() {
   showScreen('screen-actions');
-  document.getElementById('actions-list').innerHTML = '<div class="empty"><div class="spinner" style="margin:0 auto"></div><div style="margin-top:12px">Chargement…</div></div>';
+  document.getElementById('kanban-pending-list').innerHTML = '<div style="padding:16px;text-align:center"><div class="spinner" style="margin:0 auto"></div></div>';
+  document.getElementById('kanban-launched-list').innerHTML = '';
+  document.getElementById('kanban-resolved-list').innerHTML = '';
   if (isTokenValid()) {
     const index = await loadJsonFromDrive('nc_index.json');
     if (index) S.ncIndex = index;
