@@ -140,6 +140,11 @@
     #screen-signin{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:24px;padding:40px 24px;text-align:center}
     .btn-google{display:flex;align-items:center;gap:10px;background:var(--bg2);border:.5px solid var(--border2);border-radius:var(--r);padding:14px 24px;font-size:14px;font-weight:500;color:var(--text);cursor:pointer;font-family:'DM Sans',sans-serif}
     .q-type-tag{font-size:10px;padding:2px 7px;border-radius:10px;background:var(--bg3);color:var(--text3);font-family:'DM Mono',monospace;margin-right:6px}
+    .kanban-board{display:flex;gap:12px;padding:12px 16px;overflow-x:auto;flex:1;align-items:flex-start}
+    .kanban-col{flex:1;min-width:280px;background:var(--bg2);border-radius:var(--r2);border:.5px solid var(--border);overflow:hidden}
+    .kanban-col-header{padding:12px 14px;font-size:11px;font-weight:500;text-transform:uppercase;letter-spacing:.06em;border-bottom:.5px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+    .kanban-card{margin:8px;background:var(--bg);border:.5px solid var(--border);border-radius:var(--r);overflow:hidden}
+    @media(max-width:767px){.kanban-board{flex-direction:column}.kanban-col{min-width:unset}}
     #photo-viewer{position:fixed;inset:0;background:#000;z-index:300;display:none;flex-direction:column}
     #photo-viewer.open{display:flex}
     #photo-viewer-img{flex:1;object-fit:contain;width:100%;height:100%}
@@ -307,7 +312,29 @@
     <div style="padding:0 16px 10px">
       <button class="btn btn-ghost" style="width:100%;font-size:13px" onclick="exportActionsCSV()">↓ Export CSV</button>
     </div>
-    <div id="actions-list" style="padding:0 0 40px"></div>
+    <div class="kanban-board" id="actions-kanban">
+      <div class="kanban-col" id="kanban-pending">
+        <div class="kanban-col-header">
+          <span>⏳ Pending</span>
+          <span id="kanban-pending-count" style="font-family:'DM Mono',monospace;color:var(--text3)">0</span>
+        </div>
+        <div id="kanban-pending-list"></div>
+      </div>
+      <div class="kanban-col" id="kanban-launched">
+        <div class="kanban-col-header" style="color:var(--concern)">
+          <span>🚀 Launched</span>
+          <span id="kanban-launched-count" style="font-family:'DM Mono',monospace;color:var(--text3)">0</span>
+        </div>
+        <div id="kanban-launched-list"></div>
+      </div>
+      <div class="kanban-col" id="kanban-resolved">
+        <div class="kanban-col-header" style="color:var(--good)">
+          <span>✓ Resolved</span>
+          <span id="kanban-resolved-count" style="font-family:'DM Mono',monospace;color:var(--text3)">0</span>
+        </div>
+        <div id="kanban-resolved-list"></div>
+      </div>
+    </div>
   </div>
   <!-- GRILLES -->
   <div id="screen-grilles" class="screen">
@@ -1060,48 +1087,46 @@ function renderActionsList() {
       cities.map(c => `<option value="${c}" ${c === currentVal ? 'selected' : ''}>${c}</option>`).join('');
   }
 
-  if (!allNCs.length) { list.innerHTML = '<div class="empty">✓ Aucune action corrective</div>'; updateActionsKpis(); return; }
+const pending = allNCs.filter(nc => !nc.launched && !nc.resolved);
+  const launched = allNCs.filter(nc => nc.launched && !nc.resolved);
+  const resolved = allNCs.filter(nc => nc.resolved);
 
-  updateActionsKpis();
-  list.innerHTML = allNCs.map(nc => {
+  document.getElementById('kanban-pending-count').textContent = pending.length;
+  document.getElementById('kanban-launched-count').textContent = launched.length;
+  document.getElementById('kanban-resolved-count').textContent = resolved.length;
+
+  const renderCard = nc => {
     const dateStr = new Date(nc.date).toLocaleDateString('fr-FR', {day:'numeric', month:'short', year:'numeric'});
-    return `<div style="margin:0 16px 10px;background:var(--bg2);border:.5px solid ${nc.resolved?'var(--good)':'var(--border)'};border-radius:var(--r2);overflow:hidden">
-      <div style="padding:14px 16px">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:8px">
+    return `<div class="kanban-card">
+      <div style="padding:10px 12px">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:6px;margin-bottom:6px">
           <div>
-            <div style="font-size:13px;font-weight:500">${nc.site}</div>
-            <div style="font-size:11px;color:var(--text2);margin-top:1px">${nc.grilleName} · ${dateStr}</div>
+            <div style="font-size:12px;font-weight:500">${nc.site}</div>
+            <div style="font-size:10px;color:var(--text2)">${nc.grilleName} · ${dateStr}</div>
           </div>
-          <span class="badge b-${nc.level}">${ISO_MAP[nc.level]?.label}</span>
+          <span class="badge b-${nc.level}" style="font-size:9px">${ISO_MAP[nc.level]?.label}</span>
         </div>
-        <div style="font-size:13px;color:var(--text);margin-bottom:8px;line-height:1.5">${escHtml(nc.questionText)}</div>
-        ${nc.comment?`<div style="font-size:12px;color:var(--text2);margin-bottom:8px;font-style:italic">"${escHtml(nc.comment)}"</div>`:''}
-        <div style="font-size:12px;color:var(--text2);margin-bottom:8px">
-          📅 Audit réalisé le ${new Date(nc.date).toLocaleDateString('fr-FR',{day:'numeric',month:'long',year:'numeric'})}
-          ${!nc.launched && !nc.resolved ? `· <span style="color:var(--major)">⏱ ${Math.floor((Date.now()-new Date(nc.date))/(1000*60*60*24))} jour(s) sans action</span>` : ''}
-          ${(nc.launched || nc.resolved) && S.actionsTracker?.[nc.auditId]?.questions?.[nc.questionId]?.launchedAt ? `· <span style="color:var(--concern)">🚀 Action launched on ${new Date(S.actionsTracker?.[nc.auditId]?.questions?.[nc.questionId]?.launchedAt).toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'})}</span>` : ''}
-          ${nc.resolved && S.actionsTracker?.[nc.auditId]?.questions?.[nc.questionId]?.resolvedAt ? `· <span style="color:var(--good)">✓ Resolved on ${new Date(S.actionsTracker?.[nc.auditId]?.questions?.[nc.questionId]?.resolvedAt).toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'})}</span>` : ''}
-        </div>
-        ${nc.resolved?'':'<textarea class="comment-input" rows="2" placeholder="Notes on progress…" oninput="onActionNote(\''+nc.auditId+'\',\''+nc.questionId+'\',this.value)">'+escHtml(nc.note)+'</textarea>'}
-        ${nc.resolved?`<div style="font-size:12px;color:var(--good);margin-top:6px">✓ Resolved${nc.note?' · '+escHtml(nc.note):''}</div>`:''}
+        <div style="font-size:12px;color:var(--text);line-height:1.4;margin-bottom:6px">${escHtml(nc.questionText)}</div>
+        ${nc.comment?`<div style="font-size:11px;color:var(--text2);font-style:italic;margin-bottom:6px">"${escHtml(nc.comment)}"</div>`:''}
+        ${!nc.resolved?`<textarea class="comment-input" rows="1" placeholder="Notes…" style="font-size:12px" oninput="onActionNote('${nc.auditId}','${nc.questionId}',this.value)">${escHtml(nc.note)}</textarea>`:''}
+        ${nc.resolved&&nc.note?`<div style="font-size:11px;color:var(--text2);margin-top:4px">${escHtml(nc.note)}</div>`:''}
       </div>
-      <div style="border-top:.5px solid var(--border)">
+      <div style="border-top:.5px solid var(--border);display:flex">
         ${nc.resolved
-          ? `<button style="width:100%;padding:12px;background:var(--bg3);color:var(--text3);border:none;cursor:pointer;font-size:13px;font-family:'DM Sans',sans-serif" onclick="markActionUnresolved('${nc.auditId}','${nc.questionId}')">↩ Reopen</button>`
-     : nc.launched
-          ? `<div style="display:flex;border-top:.5px solid var(--border)">
-              <button style="flex:1;padding:12px;background:var(--concern-bg);color:var(--concern);border:none;cursor:pointer;font-size:13px;font-family:'DM Sans',sans-serif;font-weight:500" onclick="markActionUnlaunched('${nc.auditId}','${nc.questionId}')">⏳ Action in progress </button>
-              <button style="flex:1;padding:12px;background:var(--good-bg);color:var(--good);border:none;border-left:.5px solid var(--border);cursor:pointer;font-size:13px;font-family:'DM Sans',sans-serif;font-weight:500" onclick="markActionResolved('${nc.auditId}','${nc.questionId}')">✓ Mark as resolved</button>
-            </div>`
-          : `<div style="display:flex">
-              <button style="flex:1;padding:12px;background:var(--concern-bg);color:var(--concern);border:none;cursor:pointer;font-size:13px;font-family:'DM Sans',sans-serif;font-weight:500" onclick="markActionLaunched('${nc.auditId}','${nc.questionId}')">🚀 Launch corrective action</button>
-              <button style="flex:1;padding:12px;background:var(--good-bg);color:var(--good);border:none;border-left:.5px solid var(--border);cursor:pointer;font-size:13px;font-family:'DM Sans',sans-serif;font-weight:500" onclick="markActionResolved('${nc.auditId}','${nc.questionId}')">✓ Mark as resolved</button>
-            </div>`
+          ? `<button style="flex:1;padding:8px;background:var(--bg3);color:var(--text3);border:none;cursor:pointer;font-size:11px;font-family:'DM Sans',sans-serif" onclick="markActionUnresolved('${nc.auditId}','${nc.questionId}')">↩ Reopen</button>`
+          : nc.launched
+          ? `<button style="flex:1;padding:8px;background:var(--concern-bg);color:var(--concern);border:none;cursor:pointer;font-size:11px;font-family:'DM Sans',sans-serif" onclick="markActionUnlaunched('${nc.auditId}','${nc.questionId}')">⏳ In progress</button>
+             <button style="flex:1;padding:8px;background:var(--good-bg);color:var(--good);border:none;border-left:.5px solid var(--border);cursor:pointer;font-size:11px;font-family:'DM Sans',sans-serif" onclick="markActionResolved('${nc.auditId}','${nc.questionId}')">✓ Resolve</button>`
+          : `<button style="flex:1;padding:8px;background:var(--concern-bg);color:var(--concern);border:none;cursor:pointer;font-size:11px;font-family:'DM Sans',sans-serif" onclick="markActionLaunched('${nc.auditId}','${nc.questionId}')">🚀 Launch</button>
+             <button style="flex:1;padding:8px;background:var(--good-bg);color:var(--good);border:none;border-left:.5px solid var(--border);cursor:pointer;font-size:11px;font-family:'DM Sans',sans-serif" onclick="markActionResolved('${nc.auditId}','${nc.questionId}')">✓ Resolve</button>`
         }
       </div>
     </div>`;
-  }).join('');
-}
+  };
+
+  document.getElementById('kanban-pending-list').innerHTML = pending.length ? pending.map(renderCard).join('') : '<div style="padding:16px;text-align:center;font-size:12px;color:var(--text3)">Aucune</div>';
+  document.getElementById('kanban-launched-list').innerHTML = launched.length ? launched.map(renderCard).join('') : '<div style="padding:16px;text-align:center;font-size:12px;color:var(--text3)">Aucune</div>';
+  document.getElementById('kanban-resolved-list').innerHTML = resolved.length ? resolved.map(renderCard).join('') : '<div style="padding:16px;text-align:center;font-size:12px;color:var(--text3)">Aucune</div>';
 function exportActionsCSV() {
   const rows = [['City', 'Question', 'NC Type', 'NC Detected', 'Action Launched', 'Action Resolved']];
   (S.ncIndex || []).forEach(nc => {
