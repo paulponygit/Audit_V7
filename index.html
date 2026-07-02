@@ -1031,6 +1031,7 @@ function toggleActionsStatusFilter(status, btn) {
 function renderActionsList() {
   const list = document.getElementById('kanban-pending-list');
   if (!list) return;
+  updateActionsKpis();
   let allNCs = [];
 
   (S.ncIndex || []).forEach(nc => {
