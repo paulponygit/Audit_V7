@@ -1130,13 +1130,14 @@ const pending = allNCs.filter(nc => !nc.launched && !nc.resolved);
   updateActionsKpis();
 }
 function exportActionsCSV() {
-  const rows = [['City', 'Question', 'NC Type', 'NC Detected', 'Action Launched', 'Action Resolved']];
+  const rows = [['City', 'Question', 'NC Type', 'NC Detected', 'Action Launched', 'Action Resolved', 'Notes']];
   (S.ncIndex || []).forEach(nc => {
     const tracker = S.actionsTracker?.[nc.auditId]?.questions?.[nc.questionId];
     const detected = new Date(nc.date).toLocaleDateString('en-GB');
     const launched = tracker?.launchedAt ? new Date(tracker.launchedAt).toLocaleDateString('en-GB') : '-';
     const resolved = tracker?.resolvedAt ? new Date(tracker.resolvedAt).toLocaleDateString('en-GB') : '-';
-    rows.push([nc.site, `"${nc.questionText.replace(/"/g,'""')}"`, nc.level, detected, launched, resolved]);
+    const note = tracker?.note ? `"${tracker.note.replace(/"/g,'""')}"` : '-';
+    rows.push([nc.site, `"${nc.questionText.replace(/"/g,'""')}"`, nc.level, detected, launched, resolved, note]);
   });
   const csv = rows.map(r => r.join(',')).join('\n');
   const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
