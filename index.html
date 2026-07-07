@@ -301,6 +301,9 @@
         <button class="filter-chip" id="filter-type-opportunity-btn" onclick="toggleActionsTypeFilter('opportunity',this)" style="font-size:11px;padding:4px 10px">⚪</button>
       </div>
     </div>
+    <div style="padding:0 16px 8px;flex-shrink:0">
+      <button class="btn btn-ghost" style="width:100%;font-size:13px" onclick="exportActionsCSV()">↓ Export CSV</button>
+    </div>
     <div class="kanban-board" id="actions-kanban">
       <div class="kanban-col" id="kanban-pending">
         <div class="kanban-col-header">
@@ -486,7 +489,7 @@ const CONFIG = {
   TOKEN_TTL_MS: 55 * 60 * 1000 // 55 min
 };
 
-const CITIES = ['Angers','Basque_country','Bayonne','Beauvais','Bordeaux','Bourges','Charleroi','Dijon','Evry','Herouville','Liege','Limoges','Lorient','LRSY','Nice','Orleans','Perpignan','Poitiers','Tours','TEST'];
+const CITIES = ['Angers','Basque_country','Bayonne','Beauvais','Bordeaux','Bourges','Charleroi','Dijon','Evry','Herouville','Liege','Limoges','Lorient','LRSY','Nice','Orleans','Perpignan','Poitiers','Tours','TEST','Marseille'];
 
 const ISO_LEVELS = [
   {val:'good',        label:'Good 🟢',               needsEvidence:false},
