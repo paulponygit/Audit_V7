@@ -712,7 +712,7 @@ function renderAuditCard(a, showDelete=false) {
   const compPct = a.stats?.completion ?? (totalQ ? Math.round(answered/totalQ*100) : 0);
   const stats = a.stats || calcScore(a, g);
   const {conformity, majors, minors} = stats;
-  const dateStr = new Date(a.date).toLocaleDateString('fr-FR',{day:'numeric',month:'short',year:'numeric'});
+  const dateStr = new Date(a.date).toLocaleDateString('fr-FR',{day:'numeric',month:'short',year:'numeric'}) + ' ' + new Date(a.date).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
   const auditorName = (a.auditor||'').split('@')[0];
   const canDelete = S.role==='manager'||S.role==='admin' || (a.status!=='complete' && S.role==='user');
   const deleteBtn = canDelete ? `<button onclick="event.stopPropagation();deleteAudit('${a.id}')" style="padding:4px 8px;background:var(--major-bg);border:.5px solid var(--major);border-radius:6px;color:var(--major);font-size:11px;cursor:pointer;font-family:'DM Sans',sans-serif;flex-shrink:0">Suppr.</button>` : '';
