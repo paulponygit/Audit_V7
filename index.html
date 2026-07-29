@@ -1141,8 +1141,8 @@ const pending = allNCs.filter(nc => !nc.launched && !nc.resolved);
     const isImage = file.type.startsWith('image/');
     showToast('Upload en cours…');
     try {
-      const subFolderId = await getOrCreateFolder('corrective_actions', folderId)
-        .then(id => getOrCreateFolder(questionId, id));
+      const caFolderId = await getOrCreateFolder('corrective_actions', folderId);
+      const subFolderId = await getOrCreateFolder(questionId, caFolderId);
       let dataURL;
       if (isImage) {
         dataURL = await compressImage(await fileToDataURL(file), 900);
