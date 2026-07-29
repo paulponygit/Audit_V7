@@ -1109,6 +1109,8 @@ const pending = allNCs.filter(nc => !nc.launched && !nc.resolved);
         <div style="font-size:12px;color:var(--text);line-height:1.4;margin-bottom:6px">${escHtml(nc.questionText)}</div>
         ${nc.comment?`<div style="font-size:11px;color:var(--text2);font-style:italic;margin-bottom:6px">"${escHtml(nc.comment)}"</div>`:''}
         ${!nc.resolved?`<textarea class="comment-input" rows="1" placeholder="Notes…" style="font-size:12px" oninput="onActionNote('${nc.auditId}','${nc.questionId}',this.value)">${escHtml(nc.note)}</textarea>`:''}
+        <div id="proofs-${nc.auditId}-${nc.questionId}" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px"></div>
+        <button style="font-size:11px;color:var(--accent);background:none;border:none;cursor:pointer;padding:2px 0;margin-top:4px" onclick="addActionProof('${nc.auditId}','${nc.questionId}','${nc.driveFolderId}')">📎 Ajouter une preuve</button>
         ${nc.resolved&&nc.note?`<div style="font-size:11px;color:var(--text2);margin-top:4px">${escHtml(nc.note)}</div>`:''}
       </div>
       <div style="border-top:.5px solid var(--border);display:flex">
@@ -1128,6 +1130,46 @@ const pending = allNCs.filter(nc => !nc.launched && !nc.resolved);
   document.getElementById('kanban-launched-list').innerHTML = launched.length ? launched.map(renderCard).join('') : '<div style="padding:16px;text-align:center;font-size:12px;color:var(--text3)">Aucune</div>';
   document.getElementById('kanban-resolved-list').innerHTML = resolved.length ? resolved.map(renderCard).join('') : '<div style="padding:16px;text-align:center;font-size:12px;color:var(--text3)">Aucune</div>';
   updateActionsKpis();
+}
+  async function addActionProof(auditId, questionId, folderId) {
+  if (!folderId || !isTokenValid()) { showToast('Connexion requise'); return; }
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'image/*,text/plain,.pdf';
+  input.onchange = async e => {
+    const file = e.target.files[0]; if (!file) return;
+    const isImage = file.type.startsWith('image/');
+    showToast('Upload en cours…');
+    try {
+      const subFolderId = await getOrCreateFolder('corrective_actions', folderId)
+        .then(id => getOrCreateFolder(questionId, id));
+      let dataURL;
+      if (isImage) {
+        dataURL = await compressImage(await fileToDataURL(file), 900);
+      } else {
+        dataURL = await fileToDataURL(file);
+      }
+      await uploadFileToDrive(dataURL, file.name, subFolderId, file.type);
+      showToast('Preuve uploadée ✓');
+      // Afficher la preuve
+      const container = document.getElementById(`proofs-${auditId}-${questionId}`);
+      if (container) {
+        if (isImage) {
+          const img = document.createElement('img');
+          img.src = dataURL;
+          img.style.cssText = 'width:64px;height:64px;object-fit:cover;border-radius:8px;cursor:pointer';
+          img.onclick = () => openPhotoViewer(dataURL);
+          container.appendChild(img);
+        } else {
+          const link = document.createElement('div');
+          link.style.cssText = 'font-size:11px;color:var(--accent);background:var(--bg3);border-radius:6px;padding:4px 8px;cursor:pointer';
+          link.textContent = '📄 ' + file.name;
+          container.appendChild(link);
+        }
+      }
+    } catch(e) { showToast('Erreur upload: ' + e.message); }
+  };
+  input.click();
 }
 function exportActionsCSV() {
   const rows = [['City', 'Question', 'NC Type', 'NC Detected', 'Action Launched', 'Action Resolved', 'Notes']];
