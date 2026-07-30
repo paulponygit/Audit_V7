@@ -1296,9 +1296,11 @@ function renderGrilleDetail(g) {
         <span style="font-size:12px;color:var(--text3)">›</span>
       </div>
       <div class="grid-items" id="gi-${s.id}">
-        ${s.criteria.map(c=>`<div class="grid-item-row">
+        ${s.criteria.map((c,idx)=>`<div class="grid-item-row">
           <span style="flex:1;font-size:13px">${escHtml(c.text)}</span>
           <span class="q-type-tag">${c.type||'Iso'}</span>
+          <button style="width:22px;height:22px;border-radius:50%;background:var(--bg3);border:none;cursor:pointer;color:var(--text3);font-size:14px" onclick="moveCriterion('${s.id}','${c.id}',-1)" ${idx===0?'disabled':''}>↑</button>
+          <button style="width:22px;height:22px;border-radius:50%;background:var(--bg3);border:none;cursor:pointer;color:var(--text3);font-size:14px" onclick="moveCriterion('${s.id}','${c.id}',1)" ${idx===s.criteria.length-1?'disabled':''}>↓</button>
           <button style="width:22px;height:22px;border-radius:50%;background:var(--bg3);border:none;cursor:pointer;color:var(--text3)" onclick="deleteCriterion('${s.id}','${c.id}')">×</button>
         </div>`).join('')}
         <div class="grid-add-row" onclick="openAddQuestion('${s.id}')">+ Ajouter une question</div>
@@ -1317,6 +1319,18 @@ async function saveGrille() {
   await dbPut('grilles', g);
   if (isTokenValid()) { await saveGrillesToDrive(); showToast('Grille enregistrée sur Drive ✓'); }
   else showToast('Enregistré en local — sync au prochain login');
+}
+function moveCriterion(sId, cId, dir) {
+  const g = S.grilles.find(g=>g.id===S.currentGrilleId);
+  const s = g.sections.find(s=>s.id===sId);
+  const idx = s.criteria.findIndex(c=>c.id===cId);
+  const newIdx = idx + dir;
+  if (newIdx < 0 || newIdx >= s.criteria.length) return;
+  const tmp = s.criteria[idx];
+  s.criteria[idx] = s.criteria[newIdx];
+  s.criteria[newIdx] = tmp;
+  dbPut('grilles', g);
+  renderGrilleDetail(g);
 }
 function deleteCriterion(sId, cId) {
   if (!confirm('Supprimer ?')) return;
