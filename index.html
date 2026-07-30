@@ -1299,8 +1299,8 @@ function renderGrilleDetail(g) {
         ${s.criteria.map((c,idx)=>`<div class="grid-item-row">
           <span style="flex:1;font-size:13px">${escHtml(c.text)}</span>
           <span class="q-type-tag">${c.type||'Iso'}</span>
-          <button style="width:22px;height:22px;border-radius:50%;background:var(--bg3);border:none;cursor:pointer;color:var(--text3);font-size:14px" onclick="moveCriterion('${s.id}','${c.id}',-1)" ${idx===0?'disabled':''}>↑</button>
-          <button style="width:22px;height:22px;border-radius:50%;background:var(--bg3);border:none;cursor:pointer;color:var(--text3);font-size:14px" onclick="moveCriterion('${s.id}','${c.id}',1)" ${idx===s.criteria.length-1?'disabled':''}>↓</button>
+          <button style="width:22px;height:22px;border-radius:50%;background:var(--bg3);border:none;cursor:pointer;color:var(--text3);font-size:14px" onclick="event.stopPropagation();moveCriterion('${s.id}','${c.id}',-1)" ${idx===0?'disabled':''}>↑</button>
+          <button style="width:22px;height:22px;border-radius:50%;background:var(--bg3);border:none;cursor:pointer;color:var(--text3);font-size:14px" onclick="event.stopPropagation();moveCriterion('${s.id}','${c.id}',1)" ${idx===s.criteria.length-1?'disabled':''}>↓</button>
           <button style="width:22px;height:22px;border-radius:50%;background:var(--bg3);border:none;cursor:pointer;color:var(--text3)" onclick="deleteCriterion('${s.id}','${c.id}')">×</button>
         </div>`).join('')}
         <div class="grid-add-row" onclick="openAddQuestion('${s.id}')">+ Ajouter une question</div>
@@ -1331,6 +1331,7 @@ function moveCriterion(sId, cId, dir) {
   s.criteria[newIdx] = tmp;
   dbPut('grilles', g);
   renderGrilleDetail(g);
+  document.getElementById('gi-'+sId)?.classList.add('open');
 }
 function deleteCriterion(sId, cId) {
   if (!confirm('Supprimer ?')) return;
