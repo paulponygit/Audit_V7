@@ -1189,13 +1189,15 @@ function exportActionsCSV() {
   a.click(); URL.revokeObjectURL(url);
   showToast('Export CSV ✓');
 }
+let _noteSaveTimer = null;
 function onActionNote(auditId, questionId, note) {
   if (!S.actionsTracker) S.actionsTracker = {};
   if (!S.actionsTracker[auditId]) S.actionsTracker[auditId] = {questions:{}};
   if (!S.actionsTracker[auditId].questions) S.actionsTracker[auditId].questions = {};
   S.actionsTracker[auditId].questions[questionId] = S.actionsTracker[auditId].questions[questionId] || {};
   S.actionsTracker[auditId].questions[questionId].note = note;
-  saveActionsTracker();
+  clearTimeout(_noteSaveTimer);
+  _noteSaveTimer = setTimeout(() => saveActionsTracker(), 1500);
 }
 async function markActionLaunched(auditId, questionId) {
   if (!S.actionsTracker) S.actionsTracker = {};
