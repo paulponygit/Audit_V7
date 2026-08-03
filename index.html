@@ -1111,8 +1111,7 @@ const pending = allNCs.filter(nc => !nc.launched && !nc.resolved);
         ${nc.comment?`<div style="font-size:11px;color:var(--text2);font-style:italic;margin-bottom:6px">"${escHtml(nc.comment)}"</div>`:''}
         ${!nc.resolved?`<textarea class="comment-input" rows="1" placeholder="Notes…" style="font-size:12px" oninput="onActionNote('${nc.auditId}','${nc.questionId}',this.value)">${escHtml(nc.note)}</textarea>`:''}
         <div id="proofs-${nc.auditId}-${nc.questionId}" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px"></div>
-        <button style="font-size:11px;color:var(--accent);background:none;border:none;cursor:pointer;padding:2px 0;margin-top:4px" onclick="addActionProof('${nc.auditId}','${nc.questionId}','${nc.driveFolderId}')">📎 Ajouter une preuve</button>
-        ${nc.resolved&&nc.note?`<div style="font-size:11px;color:var(--text2);margin-top:4px">${escHtml(nc.note)}</div>`:''}
+        ${nc.driveFolderId?`<button style="font-size:11px;color:var(--accent);background:none;border:none;cursor:pointer;padding:2px 0;margin-top:4px" onclick="addActionProof('${nc.auditId}','${nc.questionId}','${nc.driveFolderId}')">📎 Ajouter une preuve</button>`:''}
       </div>
       <div style="border-top:.5px solid var(--border);display:flex">
         ${nc.resolved
@@ -1133,7 +1132,8 @@ const pending = allNCs.filter(nc => !nc.launched && !nc.resolved);
   updateActionsKpis();
 }
   async function addActionProof(auditId, questionId, folderId) {
-  if (!folderId || !isTokenValid()) { showToast('Connexion requise'); return; }
+  if (!folderId || folderId === 'undefined') { showToast('Dossier Drive introuvable pour cet audit'); return; }
+  if (!isTokenValid()) { showToast('Connexion requise'); return; }
   const input = document.createElement('input');
   input.type = 'file';
   input.accept = 'image/*,text/plain,.pdf';
