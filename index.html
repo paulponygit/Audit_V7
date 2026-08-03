@@ -1146,7 +1146,7 @@ const pending = allNCs.filter(nc => !nc.launched && !nc.resolved);
       const subFolderId = await getOrCreateFolder(questionId, caFolderId);
       let dataURL;
       if (isImage) {
-        dataURL = await compressImage(await fileToDataURL(file), 900);
+        dataURL = await compressImageQ(await fileToDataURL(file), 1800, 0.92);
       } else {
         dataURL = await fileToDataURL(file);
       }
@@ -2100,6 +2100,15 @@ function setLoading(show, text='') {
 // UTILS
 // ===================================================
 function fileToDataURL(f) { return new Promise(r=>{const rd=new FileReader();rd.onload=e=>r(e.target.result);rd.readAsDataURL(f);}); }
+function compressImageQ(dataURL, maxW, quality) {
+  return new Promise(res=>{
+    const img=new Image(); img.onload=()=>{
+      const ratio=Math.min(maxW/img.width,maxW/img.height,1);
+      const c=document.createElement('canvas'); c.width=img.width*ratio; c.height=img.height*ratio;
+      c.getContext('2d').drawImage(img,0,0,c.width,c.height); res(c.toDataURL('image/jpeg',quality));
+    }; img.src=dataURL;
+  });
+}
 function compressImage(dataURL, maxW) {
   return new Promise(res=>{
     const img=new Image(); img.onload=()=>{
