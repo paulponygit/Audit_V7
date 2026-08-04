@@ -267,11 +267,11 @@
       <span class="topbar-title">Actions correctives</span>
       <span class="topbar-action" id="actions-sort-btn" onclick="toggleActionsSort()">↕ Date</span>
     </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;padding:12px 16px;flex-shrink:0" id="actions-kpis">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;padding:12px 16px;flex-shrink:0" id="actions-kpis">
       <div style="background:var(--bg2);border:.5px solid var(--border);border-radius:var(--r2);padding:12px;text-align:center">
         <div style="font-size:22px;font-weight:300;font-family:'DM Mono',monospace;color:var(--good)" id="kpi-resolved">—</div>
-        <div style="font-size:11px;font-weight:500;color:var(--text);margin-top:4px">Resolved this month</div>
-        <div style="font-size:10px;color:var(--text3);margin-top:2px">NCs raised this month that have been resolved</div>
+        <div style="font-size:11px;font-weight:500;color:var(--text);margin-top:4px">Resolved (last 30 days)</div>
+        <div style="font-size:10px;color:var(--text3);margin-top:2px">NCs raised in the last 30 days that have been resolved</div>
       </div>
       <div style="background:var(--bg2);border:.5px solid var(--border);border-radius:var(--r2);padding:12px;text-align:center">
         <div style="font-size:22px;font-weight:300;font-family:'DM Mono',monospace;color:var(--concern)" id="kpi-launched">—</div>
@@ -282,6 +282,11 @@
         <div style="font-size:22px;font-weight:300;font-family:'DM Mono',monospace;color:var(--accent2)" id="kpi-avgdays">—</div>
         <div style="font-size:11px;font-weight:500;color:var(--text);margin-top:4px">Avg. days to resolve</div>
         <div style="font-size:10px;color:var(--text3);margin-top:2px">Average time between NC detection and resolution</div>
+      </div>
+      <div style="background:var(--bg2);border:.5px solid var(--border);border-radius:var(--r2);padding:12px;text-align:center">
+        <div style="font-size:22px;font-weight:300;font-family:'DM Mono',monospace;color:var(--good)" id="kpi-resolved-total">—</div>
+        <div style="font-size:11px;font-weight:500;color:var(--text);margin-top:4px">Resolved (all time)</div>
+        <div style="font-size:10px;color:var(--text3);margin-top:2px">Share of all NCs ever raised that are resolved</div>
       </div>
     </div>
    <div style="padding:8px 16px;flex-shrink:0" id="actions-filters" class="actions-filters">
@@ -933,15 +938,16 @@ async function saveGrillesToDrive() {
   }
 }
   function updateActionsKpis() {
-  const now = new Date();
-  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
   const ncs = S.ncIndex || [];
-  const thisMonth = ncs.filter(nc => new Date(nc.date).getTime() >= startOfMonth);
-  const resolvedThisMonth = thisMonth.filter(nc => {
+  const rollingStart = Date.now() - 30*24*60*60*1000;
+  const lastMonth = ncs.filter(nc => new Date(nc.date).getTime() >= rollingStart);
+  const resolvedLastMonth = lastMonth.filter(nc => {
     const t = S.actionsTracker?.[nc.auditId]?.questions?.[nc.questionId];
-    return t?.resolved && t?.resolvedAt >= startOfMonth;
+    return t?.resolved;
   });
-  const pctResolved = thisMonth.length ? Math.round(resolvedThisMonth.length / thisMonth.length * 100) : 0;
+  const pctResolved = lastMonth.length ? Math.round(resolvedLastMonth.length / lastMonth.length * 100) : 0;
+  const resolvedAll = ncs.filter(nc => S.actionsTracker?.[nc.auditId]?.questions?.[nc.questionId]?.resolved);
+  const pctResolvedTotal = ncs.length ? Math.round(resolvedAll.length / ncs.length * 100) : 0;
   const open = ncs.filter(nc => {
     const t = S.actionsTracker?.[nc.auditId]?.questions?.[nc.questionId];
     return !t?.resolved;
@@ -967,6 +973,8 @@ async function saveGrillesToDrive() {
   if (k1) k1.textContent = pctResolved + '%';
   if (k2) k2.textContent = pctLaunched + '%';
   if (k3) k3.textContent = avgDays > 0 ? avgDays + 'd' : '—';
+  const k4 = document.getElementById('kpi-resolved-total');
+  if (k4) k4.textContent = pctResolvedTotal + '%';
 }
 async function showActionsCorrectives() {
   showScreen('screen-actions');
