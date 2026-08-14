@@ -1637,7 +1637,14 @@ function onDeletePhoto(cId, idx) {
 }
 document.getElementById('photo-input').onchange = async e => {
   const file = e.target.files[0]; if (!file||!S.photoTarget) return;
-  const compressed = await compressImage(await fileToDataURL(file), 600);
+  let compressed;
+  try {
+    compressed = await compressImage(await fileToDataURL(file), 600);
+  } catch(err) {
+    showToast(err.message);
+    e.target.value='';
+    return;
+  }
   const audit = ensureAns(S.photoTarget);
   audit.answers[S.photoTarget].photos = audit.answers[S.photoTarget].photos||[];
   audit.answers[S.photoTarget].photos.push(compressed);
@@ -2117,8 +2124,10 @@ function compressImageQ(dataURL, maxW, quality) {
   });
 }
 function compressImage(dataURL, maxW) {
-  return new Promise(res=>{
-    const img=new Image(); img.onload=()=>{
+  return new Promise((res,rej)=>{
+    const img=new Image();
+    img.onerror=()=>rej(new Error('Format image non supporté (HEIC ?) — convertis en JPEG'));
+    img.onload=()=>{
       const ratio=Math.min(maxW/img.width,maxW/img.height,1);
       const c=document.createElement('canvas'); c.width=img.width*ratio; c.height=img.height*ratio;
       c.getContext('2d').drawImage(img,0,0,c.width,c.height); res(c.toDataURL('image/jpeg',.60));
