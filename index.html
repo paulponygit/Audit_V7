@@ -1947,8 +1947,13 @@ async function updateAuditsIndex(audit, stats) {
 }
   async function updateNcIndex(audit, answers, grille) {
   if (!grille) return;
-  // Remove existing NCs for this audit
-  let index = await loadJsonFromDrive('nc_index.json') || [];
+  const loaded = await loadJsonFromDrive('nc_index.json');
+  if (loaded === null) {
+    console.error('updateNcIndex: lecture nc_index.json impossible — écriture annulée');
+    showToast('⚠ Index NC illisible — NCs non indexées, resync plus tard');
+    return;
+  }
+  let index = loaded;
   index = index.filter(nc => nc.auditId !== audit.id);
   // Add current NCs
   grille.sections.forEach(s => s.criteria.forEach(c => {
@@ -1970,9 +1975,18 @@ async function updateAuditsIndex(audit, stats) {
       submittedAt: Date.now()
     });
   }));
-  // Safety: never overwrite with smaller index
-  const currentIndex = await loadJsonFromDrive('nc_index.json') || [];
-  const merged = [...currentIndex.filter(nc => nc.auditId !== audit.id), ...index.filter(nc => nc.auditId === audit.id)];
+  const otherAudits = index.filter(nc => nc.auditId !== audit.id);
+  const thisAudit = index.filter(nc => nc.auditId === audit.id);
+  const merged = [...otherAudits, ...thisAudit];
+  const knownAudits = new Set((S.ncIndex||[]).map(nc => nc.auditId));
+  knownAudits.delete(audit.id);
+  const mergedAudits = new Set(merged.map(nc => nc.auditId));
+  const lost = [...knownAudits].filter(id => !mergedAudits.has(id));
+  if (lost.length) {
+    console.error('updateNcIndex: audits perdus, écriture annulée', lost);
+    showToast('⚠ Anomalie index NC — écriture annulée par sécurité');
+    return;
+  }
   await uploadOrUpdateJson('nc_index.json', merged, CONFIG.DRIVE_FOLDER_ID);
   S.ncIndex = merged;
 }
