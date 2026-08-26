@@ -1117,6 +1117,7 @@ const pending = allNCs.filter(nc => !nc.launched && !nc.resolved);
         <div style="font-size:12px;color:var(--text);line-height:1.4;margin-bottom:6px">${escHtml(nc.questionText)}</div>
         ${nc.comment?`<div style="font-size:11px;color:var(--text2);font-style:italic;margin-bottom:6px">"${escHtml(nc.comment)}"</div>`:''}
         ${!nc.resolved?`<textarea class="comment-input" rows="1" placeholder="Notes…" style="font-size:12px" oninput="onActionNote('${nc.auditId}','${nc.questionId}',this.value)">${escHtml(nc.note)}</textarea>`:''}
+        ${nc.resolved&&nc.note?`<div style="font-size:11px;color:var(--text2);margin-top:4px;padding:6px 8px;background:var(--bg3);border-radius:6px">${escHtml(nc.note)}</div>`:''}
         <div id="proofs-${nc.auditId}-${nc.questionId}" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px"></div>
         ${nc.driveFolderId?`<button style="font-size:11px;color:var(--accent);background:none;border:none;cursor:pointer;padding:2px 0;margin-top:4px" onclick="addActionProof('${nc.auditId}','${nc.questionId}','${nc.driveFolderId}')">📎 Ajouter une preuve</button>`:''}
       </div>
