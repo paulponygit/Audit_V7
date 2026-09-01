@@ -1261,11 +1261,12 @@ async function saveActionsTracker() {
 }
 
 async function loadActionsTracker() {
+  if (isTokenValid()) {
+    const drive = await loadJsonFromDrive('actions_tracker.json');
+    if (drive) { S.actionsTracker = drive; await dbPut('settings', drive, 'actionsTracker'); return; }
+  }
   const local = await dbGet('settings', 'actionsTracker');
-  if (local) { S.actionsTracker = local; return; }
-  const drive = await loadJsonFromDrive('actions_tracker.json');
-  if (drive) { S.actionsTracker = drive; await dbPut('settings', drive, 'actionsTracker'); }
-  else S.actionsTracker = {};
+  S.actionsTracker = local || {};
 }
 function showGrilles() {
   document.getElementById('btn-new-grille').style.display = S.role==='admin' ? '' : 'none';
