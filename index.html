@@ -947,6 +947,14 @@ async function saveGrillesToDrive() {
   const pctResolved = lastMonth.length ? Math.round(resolvedLastMonth.length / lastMonth.length * 100) : 0;
   const resolvedAll = ncs.filter(nc => S.actionsTracker?.[nc.auditId]?.questions?.[nc.questionId]?.resolved);
   const pctResolvedTotal = ncs.length ? Math.round(resolvedAll.length / ncs.length * 100) : 0;
+  const isRes = nc => !!S.actionsTracker?.[nc.auditId]?.questions?.[nc.questionId]?.resolved;
+  const majorsAll = ncs.filter(nc => nc.level === 'major');
+  const minorsAll = ncs.filter(nc => nc.level === 'minor');
+  const majorsRes = majorsAll.filter(isRes);
+  const minorsRes = minorsAll.filter(isRes);
+  const critTotal = majorsAll.length + minorsAll.length;
+  const critRes = majorsRes.length + minorsRes.length;
+  const pctCritical = critTotal ? Math.round(critRes / critTotal * 100) : 0;
   const open = ncs.filter(nc => {
     const t = S.actionsTracker?.[nc.auditId]?.questions?.[nc.questionId];
     return !t?.resolved;
@@ -974,6 +982,12 @@ async function saveGrillesToDrive() {
   if (k3) k3.textContent = avgDays > 0 ? avgDays + 'd' : '—';
   const k4 = document.getElementById('kpi-resolved-total');
   if (k4) k4.textContent = pctResolvedTotal + '%';
+  const k5 = document.getElementById('kpi-critical');
+  if (k5) k5.textContent = pctCritical + '%';
+  const k5maj = document.getElementById('kpi-critical-majors');
+  if (k5maj) k5maj.textContent = `${majorsRes.length}/${majorsAll.length} maj.`;
+  const k5min = document.getElementById('kpi-critical-minors');
+  if (k5min) k5min.textContent = `${minorsRes.length}/${minorsAll.length} min.`;
 }
 async function showActionsCorrectives() {
   showScreen('screen-actions');
