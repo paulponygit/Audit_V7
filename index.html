@@ -229,6 +229,7 @@
       <button class="btn btn-ghost" style="flex:1;font-size:13px" onclick="openFilterModal()">⚙ Filtres <span id="filter-count"></span></button>
       <button class="btn btn-ghost" style="font-size:13px" onclick="resetFilters()">Réinitialiser</button>
     </div>
+    <div id="conformity-stats" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px;padding:0 16px 12px"></div>
     <div id="all-audits-list" style="padding-bottom:20px"></div>
   </div>
   <!-- AUDIT FILL -->
@@ -830,7 +831,28 @@ function applyFilters() {
   const dateTo = document.getElementById('filter-date-to').value;
   renderAllAuditsList({city, type, auditor, dateFrom, dateTo});
 }
-
+  
+function renderConformityStats(audits) {
+  const el = document.getElementById('conformity-stats');
+  if (!el) return;
+  const done = audits.filter(a => a.status === 'complete' && a.site !== 'TEST' && typeof a.stats?.conformity === 'number');
+  if (!done.length) { el.innerHTML = ''; return; }
+  const avg = arr => Math.round(arr.reduce((s,a) => s + a.stats.conformity, 0) / arr.length);
+  const card = (label, arr, accent) => {
+    if (!arr.length) return '';
+    return `<div style="background:var(--bg2);border:.5px solid ${accent?'var(--accent)':'var(--border)'};border-radius:var(--r2);padding:10px;text-align:center">
+      <div style="font-size:${accent?'22':'18'}px;font-weight:300;font-family:'DM Mono',monospace;color:var(--accent2)">${avg(arr)}%</div>
+      <div style="font-size:10px;font-weight:500;color:var(--text);margin-top:3px">${label}</div>
+      <div style="font-size:9px;color:var(--text3);font-family:'DM Mono',monospace;margin-top:1px">${arr.length} audit${arr.length>1?'s':''}</div>
+    </div>`;
+  };
+  let html = card('Global', done, true);
+  ['Logistic','Maintenance','Service','QHSE'].forEach(name => {
+    html += card(name, done.filter(a => (a.grilleName||a.grille) === name), false);
+  });
+  el.innerHTML = html;
+}
+  
 function renderAllAuditsList(filters={}) {
   let audits = [...S.allAudits];
   if (filters.city) audits = audits.filter(a => a.site === filters.city);
@@ -839,6 +861,7 @@ function renderAllAuditsList(filters={}) {
   if (filters.dateFrom) audits = audits.filter(a => new Date(a.date) >= new Date(filters.dateFrom));
   if (filters.dateTo) audits = audits.filter(a => new Date(a.date) <= new Date(filters.dateTo));
   const list = document.getElementById('all-audits-list');
+  renderConformityStats(audits);
   if (!audits.length) { list.innerHTML = '<div class="empty">Aucun audit trouvé.</div>'; return; }
   // Use renderAuditCard but override onclick to load from Drive
   list.innerHTML = audits.map(a => {
