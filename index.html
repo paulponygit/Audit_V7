@@ -1164,7 +1164,7 @@ const pending = allNCs.filter(nc => !nc.launched && !nc.resolved);
         ${!nc.resolved?`<textarea class="comment-input" rows="1" placeholder="Notes…" style="font-size:12px" oninput="onActionNote('${nc.auditId}','${nc.questionId}',this.value)">${escHtml(nc.note)}</textarea>`:''}
         ${nc.resolved&&nc.note?`<div style="font-size:11px;color:var(--text2);margin-top:4px;padding:6px 8px;background:var(--bg3);border-radius:6px">${escHtml(nc.note)}</div>`:''}
         <div id="proofs-${nc.auditId}-${nc.questionId}" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px"></div>
-        ${nc.driveFolderId?`<button id="loadproofs-${nc.auditId}-${nc.questionId}" style="font-size:11px;color:var(--text3);background:none;border:none;cursor:pointer;padding:2px 0;margin-top:4px;display:block" onclick="loadActionProofs('${nc.auditId}','${nc.questionId}','${nc.driveFolderId}')">📁 Voir les preuves</button>`:''}
+        ${nc.driveFolderId && S.actionsTracker?.[nc.auditId]?.questions?.[nc.questionId]?.hasProofs !== false ? `<button id="loadproofs-${nc.auditId}-${nc.questionId}" style="font-size:11px;color:${S.actionsTracker?.[nc.auditId]?.questions?.[nc.questionId]?.hasProofs?'var(--accent)':'var(--text3)'};background:none;border:none;cursor:pointer;padding:2px 0;margin-top:4px;display:block" onclick="loadActionProofs('${nc.auditId}','${nc.questionId}','${nc.driveFolderId}')">📁 Voir les preuves</button>`:''}
         ${nc.driveFolderId?`<button style="font-size:11px;color:var(--accent);background:none;border:none;cursor:pointer;padding:2px 0;margin-top:4px" onclick="addActionProof('${nc.auditId}','${nc.questionId}','${nc.driveFolderId}')">📎 Ajouter une preuve</button>`:''}
       </div>
       <div style="border-top:.5px solid var(--border);display:flex">
@@ -1185,6 +1185,15 @@ const pending = allNCs.filter(nc => !nc.launched && !nc.resolved);
   document.getElementById('kanban-resolved-list').innerHTML = resolved.length ? resolved.map(renderCard).join('') : '<div style="padding:16px;text-align:center;font-size:12px;color:var(--text3)">Aucune</div>';
   updateActionsKpis();
 }
+  function setProofFlag(auditId, questionId, val) {
+  if (!S.actionsTracker) S.actionsTracker = {};
+  if (!S.actionsTracker[auditId]) S.actionsTracker[auditId] = {questions:{}};
+  if (!S.actionsTracker[auditId].questions) S.actionsTracker[auditId].questions = {};
+  if (!S.actionsTracker[auditId].questions[questionId]) S.actionsTracker[auditId].questions[questionId] = {};
+  if (S.actionsTracker[auditId].questions[questionId].hasProofs === val) return;
+  S.actionsTracker[auditId].questions[questionId].hasProofs = val;
+  saveActionsTracker();
+}
   async function loadActionProofs(auditId, questionId, folderId) {
   const container = document.getElementById(`proofs-${auditId}-${questionId}`);
   const btn = document.getElementById(`loadproofs-${auditId}-${questionId}`);
@@ -1196,14 +1205,15 @@ const pending = allNCs.filter(nc => !nc.launched && !nc.resolved);
   try {
     const q1 = `name='corrective_actions' and mimeType='application/vnd.google-apps.folder' and '${folderId}' in parents and trashed=false`;
     const r1 = await driveRequest(`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q1)}&fields=files(id)`);
-    if (!r1.files?.length) { container.innerHTML = '<div style="font-size:11px;color:var(--text3)">Aucune preuve</div>'; return; }
+    if (!r1.files?.length) { container.innerHTML = '<div style="font-size:11px;color:var(--text3)">Aucune preuve</div>'; setProofFlag(auditId, questionId, false); return; }
     const q2 = `name='${questionId}' and mimeType='application/vnd.google-apps.folder' and '${r1.files[0].id}' in parents and trashed=false`;
     const r2 = await driveRequest(`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q2)}&fields=files(id)`);
-    if (!r2.files?.length) { container.innerHTML = '<div style="font-size:11px;color:var(--text3)">Aucune preuve</div>'; return; }
+    if (!r2.files?.length) { container.innerHTML = '<div style="font-size:11px;color:var(--text3)">Aucune preuve</div>'; setProofFlag(auditId, questionId, false); return; }
     const q3 = `'${r2.files[0].id}' in parents and trashed=false`;
     const r3 = await driveRequest(`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q3)}&fields=files(id,name,mimeType,webViewLink)&orderBy=name`);
-    if (!r3.files?.length) { container.innerHTML = '<div style="font-size:11px;color:var(--text3)">Aucune preuve</div>'; return; }
+    if (!r3.files?.length) { container.innerHTML = '<div style="font-size:11px;color:var(--text3)">Aucune preuve</div>'; setProofFlag(auditId, questionId, false); return; }
     container.innerHTML = '';
+    setProofFlag(auditId, questionId, true);
     for (const f of r3.files) {
       if (f.mimeType?.startsWith('image/')) {
         const res = await fetch(`https://www.googleapis.com/drive/v3/files/${f.id}?alt=media&supportsAllDrives=true`, {
@@ -1251,6 +1261,7 @@ const pending = allNCs.filter(nc => !nc.launched && !nc.resolved);
         dataURL = await fileToDataURL(file);
       }
       await uploadFileToDrive(dataURL, file.name, subFolderId, file.type);
+      setProofFlag(auditId, questionId, true);
       showToast('Preuve uploadée ✓');
       // Afficher la preuve
       const container = document.getElementById(`proofs-${auditId}-${questionId}`);
