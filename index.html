@@ -350,6 +350,14 @@
       <span class="topbar-action" id="btn-new-grille" style="display:none" onclick="createNewGrille()">+ Grille</span>
     </div>
     <div id="grilles-list" style="padding:12px 0 20px"></div>
+    <div id="cities-admin" style="display:none;margin:0 16px 40px">
+      <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Villes</div>
+      <div id="cities-list" style="background:var(--bg2);border:.5px solid var(--border);border-radius:var(--r2);overflow:hidden"></div>
+      <div style="display:flex;gap:8px;margin-top:10px">
+        <input type="text" id="new-city-name" placeholder="Nouvelle ville" style="flex:1;background:var(--bg3);border:.5px solid var(--border2);border-radius:var(--r);padding:10px 12px;font-size:13px;color:var(--text);font-family:'DM Sans',sans-serif;outline:none">
+        <button class="btn btn-ghost" style="font-size:13px" onclick="addCity()">+ Ajouter</button>
+      </div>
+    </div>
   </div>
 
   <!-- GRILLE DETAIL -->
@@ -502,7 +510,7 @@ const CONFIG = {
   TOKEN_TTL_MS: 55 * 60 * 1000 // 55 min
 };
 
-const CITIES = ['Angers','Basque_country','Bayonne','Beauvais','Bordeaux','Bourges','Charleroi','Dijon','Evry','Herouville','Liege','Limoges','Lorient','LRSY','Nice','Orleans','Perpignan','Poitiers','Tours','TEST','Marseille'];
+let CITIES = ['Angers','Basque_country','Bayonne','Beauvais','Bordeaux','Bourges','Charleroi','Dijon','Evry','Herouville','Liege','Limoges','Lorient','LRSY','Marseille','Nice','Orleans','Perpignan','Poitiers','Tours','TEST'];
 
 const ISO_LEVELS = [
   {val:'good',        label:'Good 🟢',               needsEvidence:false},
@@ -667,6 +675,7 @@ function closeModal(id) { document.getElementById(id)?.classList.remove('open');
 async function loadHomeData() {
   setLoading(true, 'Chargement des grilles…');
   try {
+    await loadCitiesFromDrive();
     await loadGrillesFromDrive();
     await loadActionsTracker();
     setLoading(true, 'Chargement de vos audits…');
@@ -937,6 +946,23 @@ async function loadJsonFromFolder(folderId, filename) {
 // ===================================================
 // GRILLES
 // ===================================================
+async function loadCitiesFromDrive() {
+  const s = await loadJsonFromDrive('settings.json');
+  if (s?.cities?.length) { CITIES = s.cities; await dbPut('settings', s.cities, 'cities'); return; }
+  const local = await dbGet('settings', 'cities');
+  if (local?.length) CITIES = local;
+}
+
+async function saveCitiesToDrive() {
+  const remote = await loadJsonFromDrive('settings.json');
+  if (remote === null && !(await loadJsonFromDrive('grilles.json'))) {
+    showToast('⚠ Drive inaccessible — enregistrement annulé');
+    throw new Error('drive unreachable');
+  }
+  const payload = {...(remote || {}), cities: CITIES};
+  await uploadOrUpdateJson('settings.json', payload, CONFIG.DRIVE_FOLDER_ID);
+  await dbPut('settings', CITIES, 'cities');
+}
 async function loadGrillesFromDrive() {
   const g = await loadJsonFromDrive('grilles.json');
   if (g) { S.grilles = g; for (const gr of g) await dbPut('grilles', gr); }
@@ -1389,6 +1415,7 @@ async function loadActionsTracker() {
 function showGrilles() {
   document.getElementById('btn-new-grille').style.display = S.role==='admin' ? '' : 'none';
   renderGrillesList();
+  renderCitiesAdmin();
   showScreen('screen-grilles');
 }
 function renderGrillesList() {
@@ -1401,6 +1428,36 @@ function renderGrillesList() {
         ${isAdmin?'<span style="color:var(--text3)">›</span>':'<span class="badge b-draft">Lecture seule</span>'}
       </div>
     </div>`).join('') || '<div class="empty">Aucune grille.</div>';
+}
+  function renderCitiesAdmin() {
+  const box = document.getElementById('cities-admin');
+  if (!box) return;
+  box.style.display = S.role === 'admin' ? '' : 'none';
+  if (S.role !== 'admin') return;
+  document.getElementById('cities-list').innerHTML = CITIES.map(c =>
+    `<div style="padding:10px 14px;border-bottom:.5px solid var(--border);display:flex;align-items:center;gap:8px">
+      <span style="flex:1;font-size:13px">${escHtml(c)}</span>
+      <button style="width:22px;height:22px;border-radius:50%;background:var(--bg3);border:none;cursor:pointer;color:var(--text3)" onclick="removeCity('${escHtml(c)}')">×</button>
+    </div>`).join('');
+}
+async function addCity() {
+  const input = document.getElementById('new-city-name');
+  const name = input.value.trim();
+  if (!name) return;
+  if (CITIES.includes(name)) { showToast('Cette ville existe déjà'); return; }
+  CITIES = [...CITIES, name].sort((a,b) => a.localeCompare(b));
+  input.value = '';
+  renderCitiesAdmin();
+  try { await saveCitiesToDrive(); showToast('Ville ajoutée ✓'); }
+  catch(e) { showToast('Erreur Drive — non enregistré'); }
+}
+
+async function removeCity(name) {
+  if (!confirm(`Retirer "${name}" de la liste ?\n\nLes audits existants de cette ville ne sont pas supprimés.`)) return;
+  CITIES = CITIES.filter(c => c !== name);
+  renderCitiesAdmin();
+  try { await saveCitiesToDrive(); showToast('Ville retirée ✓'); }
+  catch(e) { showToast('Erreur Drive — non enregistré'); }
 }
 function createNewGrille() {
   const name = prompt('Nom de la grille :'); if (!name) return;
