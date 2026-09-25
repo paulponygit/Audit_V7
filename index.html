@@ -956,6 +956,21 @@ async function loadJsonFromDrive(filename) {
   } catch(e) { console.error('loadJsonFromDrive', filename, e); return null; }
 }
 async function saveGrillesToDrive() {
+  const remote = await loadJsonFromDrive('grilles.json');
+  if (remote === null) {
+    showToast('⚠ Lecture Drive impossible — enregistrement annulé');
+    throw new Error('grilles.json illisible');
+  }
+  const remoteIds = new Set();
+  remote.forEach(g => g.sections.forEach(s => s.criteria.forEach(c => remoteIds.add(c.id))));
+  const localIds = new Set();
+  S.grilles.forEach(g => g.sections.forEach(s => s.criteria.forEach(c => localIds.add(c.id))));
+  const lost = [...remoteIds].filter(id => !localIds.has(id));
+  if (lost.length) {
+    console.error('saveGrillesToDrive: questions absentes de la version locale', lost);
+    showToast(`⚠ ${lost.length} question(s) manquante(s) — recharge l'app avant d'enregistrer`);
+    throw new Error('perte de questions détectée');
+  }
   const data = JSON.stringify(S.grilles, null, 2);
   const q = `name='grilles.json' and '${CONFIG.DRIVE_FOLDER_ID}' in parents and trashed=false`;
   const res = await driveRequest(`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id)`);
