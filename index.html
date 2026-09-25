@@ -981,6 +981,7 @@ async function loadJsonFromDrive(filename) {
     return await r.json();
   } catch(e) { console.error('loadJsonFromDrive', filename, e); return null; }
 }
+let _allowedDeletions = new Set();
 async function saveGrillesToDrive() {
   const remote = await loadJsonFromDrive('grilles.json');
   if (remote === null) {
@@ -991,12 +992,13 @@ async function saveGrillesToDrive() {
   remote.forEach(g => g.sections.forEach(s => s.criteria.forEach(c => remoteIds.add(c.id))));
   const localIds = new Set();
   S.grilles.forEach(g => g.sections.forEach(s => s.criteria.forEach(c => localIds.add(c.id))));
-  const lost = [...remoteIds].filter(id => !localIds.has(id));
+  const lost = [...remoteIds].filter(id => !localIds.has(id) && !_allowedDeletions.has(id));
   if (lost.length) {
     console.error('saveGrillesToDrive: questions absentes de la version locale', lost);
     showToast(`⚠ ${lost.length} question(s) manquante(s) — recharge l'app avant d'enregistrer`);
     throw new Error('perte de questions détectée');
   }
+  _allowedDeletions.clear();
   const data = JSON.stringify(S.grilles, null, 2);
   const q = `name='grilles.json' and '${CONFIG.DRIVE_FOLDER_ID}' in parents and trashed=false`;
   const res = await driveRequest(`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id)`);
@@ -1525,6 +1527,7 @@ function deleteCriterion(sId, cId) {
   const g = S.grilles.find(g=>g.id===S.currentGrilleId);
   const s = g.sections.find(s=>s.id===sId);
   s.criteria = s.criteria.filter(c=>c.id!==cId);
+  _allowedDeletions.add(cId);
   dbPut('grilles', g); renderGrilleDetail(g);
 }
 let addQSectionId = null;
