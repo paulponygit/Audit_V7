@@ -2390,8 +2390,6 @@ function compressImageQ(dataURL, maxW, quality) {
     const img=new Image();
     img.onerror=()=>rej(new Error('Format image non supporté (HEIC ?) — convertis en JPEG'));
     img.onload=()=>{
-  return new Promise(res=>{
-    const img=new Image(); img.onload=()=>{
       const ratio=Math.min(maxW/img.width,maxW/img.height,1);
       const c=document.createElement('canvas'); c.width=img.width*ratio; c.height=img.height*ratio;
       c.getContext('2d').drawImage(img,0,0,c.width,c.height); res(c.toDataURL('image/jpeg',quality));
