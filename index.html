@@ -2386,6 +2386,10 @@ function setLoading(show, text='') {
 // ===================================================
 function fileToDataURL(f) { return new Promise(r=>{const rd=new FileReader();rd.onload=e=>r(e.target.result);rd.readAsDataURL(f);}); }
 function compressImageQ(dataURL, maxW, quality) {
+  return new Promise((res,rej)=>{
+    const img=new Image();
+    img.onerror=()=>rej(new Error('Format image non supporté (HEIC ?) — convertis en JPEG'));
+    img.onload=()=>{
   return new Promise(res=>{
     const img=new Image(); img.onload=()=>{
       const ratio=Math.min(maxW/img.width,maxW/img.height,1);
