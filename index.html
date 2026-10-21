@@ -2037,17 +2037,53 @@ const answered = Object.values(audit.answers||{}).filter(a=>a.val||(a.comment?.l
 async function loadHistory(panelId, cId) {
   const panel = document.getElementById(panelId); if (!panel) return;
   if (panel.classList.contains('open')) { panel.classList.remove('open'); return; }
-  // Charger le dernier audit depuis Drive si pas de réponses en mémoire
-  const lastAudit = [...S.myAudits, ...S.allAudits]
-    .filter(a => a.id !== S.currentAuditId && a.driveFolderId)
-    .sort((a,b) => new Date(b.date) - new Date(a.date))[0];
-  if (lastAudit && (!lastAudit.answers || Object.keys(lastAudit.answers).length === 0) && isTokenValid()) {
-    const rapport = await loadJsonFromFolder(lastAudit.driveFolderId, 'rapport.json');
-    if (rapport) {
-      Object.assign(lastAudit, rapport);
-      await dbPut('audits', lastAudit);
+  const cur = getAudit(); if (!cur) return;
+  const HIST_SAME_SITE = true; // false = toutes les villes
+  const HIST_MAX = 1;
+  const curGrille = cur.grilleName || cur.grille;
+  const candidates = S.allAudits
+    .filter(a => a.id !== cur.id && a.status === 'complete' && a.driveFolderId
+      && (a.grilleId === cur.grilleId || (a.grilleName || a.grille) === curGrille)
+      && (!HIST_SAME_SITE || a.site === cur.site)
+      && new Date(a.date) < new Date(cur.date))
+    .sort((a,b) => new Date(b.date) - new Date(a.date))
+    .slice(0, HIST_MAX);
+  const msg = t => `<div style="font-size:12px;color:var(--text3)">${t}</div>`;
+  panel.classList.add('open');
+  if (!candidates.length) { panel.innerHTML = msg('Aucun audit précédent.'); return; }
+  panel.innerHTML = '<div class="spinner" style="margin:4px auto"></div>';
+  if (!S.rapportsCache) S.rapportsCache = {};
+  let failed = 0;
+  const rapports = await Promise.all(candidates.map(async a => {
+    if (a.answers && Object.keys(a.answers).length) return a;
+    if (S.rapportsCache[a.id]) return S.rapportsCache[a.id];
+    if (!isTokenValid()) { failed++; return null; }
+    try {
+      const r = await loadJsonFromFolder(a.driveFolderId, 'rapport.json');
+      if (r) S.rapportsCache[a.id] = r; else failed++;
+      return r;
+    } catch(e) { console.warn('loadHistory', a.id, e); failed++; return null; }
+  }));
+  const fmtVal = ans => {
+    if (!ans) return '<span style="color:var(--text3)">Non répondu</span>';
+    const parts = [];
+    if (ans.val && ISO_MAP[ans.val]) parts.push(`<span class="badge b-${ans.val}">${ISO_MAP[ans.val].label}</span>`);
+    if (ans.dual1 !== undefined || ans.dual2 !== undefined) parts.push(`${escHtml(String(ans.dual1 ?? '—'))} checkés · ${escHtml(String(ans.dual2 ?? '—'))} mal déclarés`);
+    if (ans.comment) {
+      const c = /^\d{4}-\d{2}-\d{2}$/.test(ans.comment) ? new Date(ans.comment).toLocaleDateString('fr-FR') : ans.comment;
+      parts.push(escHtml(c.length > 80 ? c.substring(0, 80) + '…' : c));
     }
-  }
+    if (ans.photos?.length) parts.push(`📷 ${ans.photos.length}`);
+    return parts.length ? parts.join(' · ') : '<span style="color:var(--text3)">Non répondu</span>';
+  };
+  let html = '';
+  candidates.forEach((a, i) => {
+    const r = rapports[i]; if (!r) return;
+    html += `<div class="history-item"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><span style="font-size:11px;font-weight:500;font-family:'DM Mono',monospace">${escHtml(a.site)} · ${new Date(a.date).toLocaleDateString('fr-FR')}</span><span style="font-size:10px;color:var(--text3)">${escHtml((a.auditor||'').split('@')[0])}</span></div><div style="font-size:11px;color:var(--text2);margin-top:3px">${fmtVal(r.answers?.[cId])}</div></div>`;
+  });
+  if (failed) html += msg(`⚠ ${failed} rapport(s) non chargé(s)${isTokenValid() ? '' : ' — reconnecte-toi'}`);
+  panel.innerHTML = html || msg('Aucun historique.');
+}
   const seen = new Set();
   const all = [...S.myAudits, ...S.allAudits].filter(a => {
     if (a.id === S.currentAuditId || !a.answers?.[cId]?.val) return false;
