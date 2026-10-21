@@ -232,6 +232,9 @@
       <button class="btn btn-ghost" style="flex:1;font-size:13px" onclick="openFilterModal()">⚙ Filtres <span id="filter-count"></span></button>
       <button class="btn btn-ghost" style="font-size:13px" onclick="resetFilters()">Réinitialiser</button>
     </div>
+    <div style="padding:0 16px 10px">
+      <button class="btn btn-ghost" id="btn-export-all-csv" style="width:100%;font-size:13px" onclick="exportAllAuditsCSV()">↓ Export CSV</button>
+    </div>
     <div id="conformity-stats" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px;padding:0 16px 12px"></div>
     <div id="all-audits-list" style="padding-bottom:20px"></div>
   </div>
@@ -874,6 +877,7 @@ function renderAllAuditsList(filters={}) {
   if (filters.dateTo) audits = audits.filter(a => new Date(a.date) <= new Date(filters.dateTo));
   const list = document.getElementById('all-audits-list');
   renderConformityStats(audits);
+  S._filteredAudits = audits;
   if (!audits.length) { list.innerHTML = '<div class="empty">Aucun audit trouvé.</div>'; return; }
   // Use renderAuditCard but override onclick to load from Drive
   list.innerHTML = audits.map(a => {
@@ -1328,6 +1332,108 @@ const pending = allNCs.filter(nc => !nc.launched && !nc.resolved);
     } catch(e) { showToast('Erreur upload: ' + e.message); }
   };
   input.click();
+}
+  // ===================================================
+// EXPORT CSV — résultats d'audits (question / note / commentaire)
+// ===================================================
+const CSV_HEADER = ['Audit ID','City','Audit type','Date','Auditor','Status','#','Question ID','Question','Question type','Rating','Comment'];
+function csvCell(v) {
+  const s = (v === null || v === undefined) ? '' : String(v);
+  return /[";\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+function isoText(val) {
+  return ISO_MAP[val] ? ISO_MAP[val].label.replace(/\s+\S+$/, '') : (val || '');
+}
+function answerCells(type, ans) {
+  if (type === 'DualNumber') {
+    const parts = [];
+    if (ans.dual1 !== undefined && ans.dual1 !== '') parts.push('Véhicules checkés : ' + ans.dual1);
+    if (ans.dual2 !== undefined && ans.dual2 !== '') parts.push('Mal déclarés : ' + ans.dual2);
+    return ['', parts.join(' / ')];
+  }
+  return [type === 'Iso' ? isoText(ans.val) : '', ans.comment || ''];
+}
+function auditToCsvRows(audit, grille) {
+  const rows = [];
+  const answers = audit.answers || {};
+  const d = new Date(audit.date);
+  const base = [audit.id, audit.site, audit.grilleName || audit.grille || '', isNaN(d) ? '' : d.toLocaleDateString('fr-FR'), audit.auditor || '', audit.status === 'complete' ? 'Complete' : 'In progress'];
+  const seen = new Set();
+  let n = 0;
+  (grille?.sections || []).forEach(s => s.criteria.forEach(c => {
+    n++; seen.add(c.id);
+    const type = c.type || 'Iso';
+    rows.push([...base, n, c.id, c.text, type, ...answerCells(type, answers[c.id] || {})]);
+  }));
+  const orphanLabel = grille ? '[Question retirée de la grille]' : '[Grille introuvable]';
+  Object.keys(answers).forEach(id => {
+    if (seen.has(id)) return;
+    const ans = answers[id] || {};
+    if (!ans.val && !ans.comment && ans.dual1 === undefined) return;
+    rows.push([...base, '', id, orphanLabel, '', ...answerCells(ans.val ? 'Iso' : (ans.dual1 !== undefined ? 'DualNumber' : ''), ans)]);
+  });
+  return rows;
+}
+function safeFileName(s) { return String(s || '').replace(/[^\w-]+/g, '_'); }
+function downloadCsv(rows, filename) {
+  const csv = '\uFEFF' + rows.map(r => r.map(csvCell).join(';')).join('\r\n');
+  const blob = new Blob([csv], {type: 'text/csv;charset=utf-8;'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+function exportAuditCSV() {
+  const audit = getAudit();
+  if (!audit) { showToast('Audit introuvable'); return; }
+  const grille = S.grilles.find(g => g.id === audit.grilleId || g.name === (audit.grilleName || audit.grille));
+  const rows = [CSV_HEADER, ...auditToCsvRows(audit, grille)];
+  const d = new Date(audit.date).toISOString().slice(0, 10);
+  downloadCsv(rows, `audit_${safeFileName(audit.site)}_${safeFileName(audit.grilleName || audit.grille)}_${d}.csv`);
+  showToast('Export CSV ✓');
+}
+let _exportingAll = false;
+async function exportAllAuditsCSV() {
+  if (_exportingAll) return;
+  if (!isTokenValid()) { showToast('Reconnecte-toi d\'abord'); return; }
+  const cityFilter = document.getElementById('filter-city')?.value || '';
+  const list = (S._filteredAudits || S.allAudits)
+    .filter(a => a.driveFolderId)
+    .filter(a => a.site !== 'TEST' || cityFilter === 'TEST');
+  if (!list.length) { showToast('Aucun audit à exporter'); return; }
+  if (!confirm(`Exporter ${list.length} audit(s) ?\n\nChaque rapport est relu sur Drive, cela peut prendre un moment.`)) return;
+  _exportingAll = true;
+  const btn = document.getElementById('btn-export-all-csv');
+  const results = new Array(list.length);
+  let done = 0, failed = 0;
+  try {
+    for (let i = 0; i < list.length; i += 4) {
+      await Promise.all(list.slice(i, i + 4).map(async (a, k) => {
+        try { results[i + k] = await loadJsonFromFolder(a.driveFolderId, 'rapport.json'); }
+        catch (e) { console.warn('exportAllAuditsCSV', a.id, e); results[i + k] = null; }
+        done++;
+        if (btn) btn.textContent = `Export… ${done}/${list.length}`;
+      }));
+    }
+    const rows = [CSV_HEADER];
+    list.forEach((a, idx) => {
+      const r = results[idx];
+      if (!r) {
+        failed++;
+        rows.push([a.id, a.site, a.grilleName || a.grille || '', new Date(a.date).toLocaleDateString('fr-FR'), a.auditor || '', '', '', '', '⚠ rapport.json illisible — audit non exporté', '', '', '']);
+        return;
+      }
+      const merged = {...a, ...r};
+      const grille = S.grilles.find(g => g.id === merged.grilleId || g.name === (merged.grilleName || merged.grille));
+      rows.push(...auditToCsvRows(merged, grille));
+    });
+    downloadCsv(rows, `audits_export_${new Date().toISOString().slice(0, 10)}.csv`);
+    showToast(failed ? `⚠ Export fait, ${failed} audit(s) illisible(s)` : `Export CSV ✓ (${list.length} audits)`);
+  } finally {
+    _exportingAll = false;
+    if (btn) btn.textContent = '↓ Export CSV';
+  }
 }
 function exportActionsCSV() {
   const rows = [['City', 'Question', 'NC Type', 'NC Detected', 'Action Launched', 'Action Resolved', 'Notes']];
@@ -2082,7 +2188,10 @@ function renderSummaryTab(audit, grille) {
       Grille : <strong style="color:var(--text)">${audit.grilleName||audit.grille||'—'}</strong><br>
       Date : <strong style="color:var(--text)">${new Date(audit.date).toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long',year:'numeric'})}</strong><br>
       Auditeur : <strong style="color:var(--text)">${audit.auditor}</strong><br>
-      Statut : <span class="badge ${audit.status==='complete'?'b-complete':'b-pending'}">${audit.status==='complete'?'Terminé':'En cours'}</span>
+            Statut : <span class="badge ${audit.status==='complete'?'b-complete':'b-pending'}">${audit.status==='complete'?'Terminé':'En cours'}</span>
+    </div>
+    <div style="margin:14px 16px 0">
+      <button class="btn btn-ghost" style="width:100%;font-size:13px" onclick="exportAuditCSV()">↓ Export CSV de cet audit</button>
     </div>`;
 }
 
