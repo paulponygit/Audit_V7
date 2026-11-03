@@ -691,7 +691,10 @@ async function loadHomeData() {
     showToast('Erreur de chargement Drive');
   }
   setLoading(false);
-  showHome();
+  // Ne pas éjecter l'utilisateur d'un audit en cours (ex. reconnexion)
+  const activeScreen = document.querySelector('.screen.active')?.id;
+  if (activeScreen === 'screen-audit') { renderHomeAuditList(); updateActionsCorrectivestBtn(); }
+  else showHome();
 }
 
 function showHome() {
@@ -900,18 +903,31 @@ async function loadMyAudits() {
   if (!isTokenValid()) return;
   try {
     const index = await loadJsonFromDrive('audits_index.json');
-    if (index) {
-      S.allAudits = index.sort((a,b) => new Date(b.date) - new Date(a.date));
-      // My audits = 10 most recent by current user
-      S.myAudits = S.allAudits.filter(a => a.auditor === S.user?.email).slice(0, 10);
-      // Also include my pending audits from local cache not yet in index
-      const localAudits = await dbGetAll('audits');
-      const localPending = localAudits.filter(a => !a.synced && a.auditor === S.user?.email);
-      for (const a of localPending) {
-        if (!S.myAudits.find(x => x.id === a.id)) S.myAudits.unshift(a);
-      }
-      for (const a of S.myAudits) await dbPut('audits', a);
+    if (!index) return;
+    S.allAudits = index.sort((a,b) => new Date(b.date) - new Date(a.date));
+    const hasAnswers = a => !!(a && a.answers && Object.keys(a.answers).length);
+    const localAudits = await dbGetAll('audits');
+    // Priorité : objet en mémoire (audit ouvert) > copie locale avec réponses > entrée d'index
+    const pick = id => {
+      const mem = S.myAudits.find(x => x.id === id);
+      if (mem && (hasAnswers(mem) || id === S.currentAuditId)) return mem;
+      const loc = localAudits.find(x => x.id === id);
+      if (hasAnswers(loc)) return loc;
+      return null;
+    };
+    const mine = S.allAudits.filter(a => a.auditor === S.user?.email).slice(0, 10).map(entry => {
+      const keep = pick(entry.id);
+      if (!keep) return entry;
+      keep.status = entry.status;
+      keep.driveFolderId = keep.driveFolderId || entry.driveFolderId;
+      return keep;
+    });
+    // Audits locaux jamais arrivés dans l'index
+    for (const a of localAudits) {
+      if (a.auditor === S.user?.email && !mine.find(x => x.id === a.id)) mine.unshift(pick(a.id) || a);
     }
+    S.myAudits = mine;
+    for (const a of mine) await dbPut('audits', a);
   } catch(e) { console.error('loadMyAudits', e); }
 }
 
@@ -1803,22 +1819,16 @@ function renderAuditScreen(audit) {
       audit.status='pending'; await dbPut('audits',audit); await syncAuditToDrive(audit); renderAuditScreen(audit); showToast('Audit rouvert');
     };
   } else { action.textContent=''; action.onclick=null; }
-  document.getElementById('btn-back-audit').onclick = () => {
-    if (audit.status !== 'complete') {
-      syncAuditToDrive(audit).then(() => showToast('Audit enregistré ✓'));
-    }
-    if (S._cameFromAllAudits) { S._cameFromAllAudits = false; showAllAudits(); }
-    else showHome();
-  };
   const saveBtn = document.getElementById('btn-save-draft');
   saveBtn.onclick = async () => {
-    await syncAuditToDrive(audit);
-    saveBtn.textContent = '✓ Enregistré';
-    saveBtn.style.opacity = '0.4';
-    showToast('Audit enregistré ✓');
+    saveBtn.textContent = 'Envoi…';
+    const r = await syncAuditToDrive(audit);
+    syncResultToast(r);
+    if (r === 'ok') { saveBtn.textContent = '✓ Envoyé'; saveBtn.style.opacity = '0.4'; }
+    else { saveBtn.textContent = 'Enregistrer'; saveBtn.style.opacity = '1'; }
   };
   document.getElementById('btn-back-audit').onclick = () => {
-    syncAuditToDrive(audit).then(() => showToast('Audit enregistré ✓'));
+    syncAuditToDrive(audit).then(syncResultToast);
     if (S._cameFromAllAudits) { S._cameFromAllAudits = false; showAllAudits(); }
     else showHome();
   };
@@ -2238,9 +2248,15 @@ async function submitAudit(audit, grille) {
   if (missingDatePhoto) { showToast('⚠ La photo est obligatoire pour "Date of last check"'); return; }
   audit.status='complete';
   await dbPut('audits',audit);
-  updateSyncUI(null);
-  await syncAuditToDrive(audit);
-  updateSyncUI(true);
+  const r = await syncAuditToDrive(audit);
+  if (r !== 'ok') {
+    // Échec : l'audit repasse en cours pour pouvoir être renvoyé
+    audit.status = 'pending';
+    await dbPut('audits', audit);
+    syncResultToast(r);
+    renderHomeAuditList();
+    return;
+  }
   showToast('Audit envoyé ✓');
   renderAuditScreen(audit);
   renderHomeAuditList();
@@ -2251,13 +2267,14 @@ async function submitAudit(audit, grille) {
 // ===================================================
 let _syncing = false;
 async function syncAuditToDrive(audit) {
-  if (!isTokenValid()) { updateSyncUI(false); return; }
-  if (_syncing) return;
+  if (!isTokenValid()) { updateSyncUI(false); return 'offline'; }
+  if (_syncing) return 'busy';
   if (!audit.answers || Object.keys(audit.answers).length === 0) {
     console.warn('syncAuditToDrive: answers vides, upload annulé pour', audit.id);
-    return;
+    return 'empty';
   }
   _syncing = true;
+  let result = 'error';
   try {
     updateSyncUI(null);
     // Get or create folder
@@ -2266,26 +2283,32 @@ async function syncAuditToDrive(audit) {
     const auditFolderName = `${audit.grilleName} - ${dateStr} - ${audit.id.replace('a_','')}`;
     const folderId = audit.driveFolderId || await getOrCreateFolder(auditFolderName, cityFolderId);
     audit.driveFolderId = folderId;
-    // Upload photos, replace dataURLs with filenames
+    if (!S.photoUrlCache) S.photoUrlCache = {};
+    // N'envoie que les photos nouvelles. Une fois envoyée, la photo est remplacée
+    // par son nom de fichier dans l'audit local : elle ne sera plus jamais renvoyée.
     const answersExport = {};
     for (const [cId, ans] of Object.entries(audit.answers||{})) {
-      const photoNames = [];
-      for (let i=0; i<(ans.photos||[]).length; i++) {
-        if (ans.photos[i].startsWith('data:')) {
-          const name = `${cId}_p${i+1}.jpg`;
-          await uploadFileToDrive(ans.photos[i], name, folderId, 'image/jpeg');
-          photoNames.push(name);
-        } else { photoNames.push(ans.photos[i]); }
+      const photos = ans.photos || [];
+      for (let i=0; i<photos.length; i++) {
+        if (typeof photos[i] === 'string' && photos[i].startsWith('data:')) {
+          const name = `${cId}_p${i+1}_${Date.now().toString(36)}.jpg`;
+          await uploadFileToDrive(photos[i], name, folderId, 'image/jpeg');
+          S.photoUrlCache[folderId+'/'+name] = photos[i];
+          photos[i] = name;
+        }
       }
-      const resPhotos = [];
-      if (ans.resolved?.photos) for (let i=0; i<ans.resolved.photos.length; i++) {
-        if (ans.resolved.photos[i].startsWith('data:')) {
-          const name = `${cId}_res${i+1}.jpg`; await uploadFileToDrive(ans.resolved.photos[i], name, folderId, 'image/jpeg'); resPhotos.push(name);
-        } else resPhotos.push(ans.resolved.photos[i]);
+      const resPhotos = ans.resolved?.photos || [];
+      for (let i=0; i<resPhotos.length; i++) {
+        if (typeof resPhotos[i] === 'string' && resPhotos[i].startsWith('data:')) {
+          const name = `${cId}_res${i+1}_${Date.now().toString(36)}.jpg`;
+          await uploadFileToDrive(resPhotos[i], name, folderId, 'image/jpeg');
+          resPhotos[i] = name;
+        }
       }
-      answersExport[cId] = {...ans, photos:photoNames, resolved:ans.resolved?{...ans.resolved,photos:resPhotos}:null};
+      answersExport[cId] = {...ans, photos:[...photos], resolved:ans.resolved?{...ans.resolved,photos:[...resPhotos]}:null};
     }
-    const stats = calcScore(audit, S.grilles.find(g=>g.id===audit.grilleId||g.name===(audit.grilleName||audit.grille)));
+    const grille = S.grilles.find(g=>g.id===audit.grilleId||g.name===(audit.grilleName||audit.grille));
+    const stats = calcScore(audit, grille);
     const rapport = {
       id:audit.id, site:audit.site, grilleId:audit.grilleId,
       grilleName:audit.grilleName||audit.grille||'',
@@ -2293,21 +2316,30 @@ async function syncAuditToDrive(audit) {
       answers:answersExport, stats
     };
     await uploadOrUpdateJson('rapport.json', rapport, folderId);
-    // Update audits_index.json
     await updateAuditsIndex(audit, stats);
-    // Update nc_index.json
-    const grilleForNc = S.grilles.find(g=>g.id===audit.grilleId||g.name===(audit.grilleName||audit.grille));
-    await updateNcIndex(audit, answersExport, grilleForNc);
-    await dbPut('audits', audit);
+    await updateNcIndex(audit, answersExport, grille);
+    result = 'ok';
     updateSyncUI(true);
   } catch(e) {
     console.error('syncAuditToDrive', e);
-    if (e.message?.includes('403')) { showToast('⚠ Accès Drive refusé — contacte ton admin'); }
-    else { showToast('Hors ligne — sauvegardé en local'); }
+    result = e.message?.includes('403') ? 'denied' : 'error';
     updateSyncUI(false);
   } finally {
     _syncing = false;
+    try { await dbPut('audits', audit); } catch(_) {}
   }
+  return result;
+}
+function syncResultToast(r) {
+  const msg = {
+    ok: 'Envoyé sur Drive ✓',
+    busy: 'Envoi déjà en cours, réessaie',
+    offline: '⚠ Non envoyé — reconnecte-toi',
+    empty: 'Rien à envoyer',
+    denied: '⚠ Accès Drive refusé',
+    error: '⚠ Échec de l\'envoi, réessaie'
+  };
+  showToast(msg[r] || msg.error);
 }
 
 // ===================================================
@@ -2321,7 +2353,8 @@ async function updateAuditsIndex(audit, stats) {
     driveFolderId: audit.driveFolderId,
     stats: {conformity: stats.conformity, majors: stats.majors, minors: stats.minors, concerns: stats.concerns, completion: Math.round(Object.values(audit.answers||{}).filter(a=>a.val||(a.comment?.length)||(a.photos?.length)||a.dual1!==undefined).length / Math.max(1, S.grilles.find(g=>g.id===audit.grilleId||g.name===(audit.grilleName||audit.grille))?.sections.reduce((s,sec)=>s+sec.criteria.length,0)||1) * 100)}  };
   // Load current index from Drive
-  let driveIndex = await loadJsonFromDrive('audits_index.json') || [];
+  const driveIndex = await loadJsonFromDrive('audits_index.json');
+  if (driveIndex === null) throw new Error('audits_index.json illisible — index non mis à jour');
   // Safety check — never overwrite with a smaller index unless it's the same audit
   let memoryIndex = [...S.allAudits];
   // Merge: start from the larger of the two
@@ -2458,9 +2491,10 @@ async function uploadOrUpdateJson(name, data, parentId) {
   const q = `name='${name}' and '${parentId}' in parents and trashed=false`;
   const res = await driveRequest(`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id)`);
   if (res.files?.length) {
-    await fetch(`https://www.googleapis.com/upload/drive/v3/files/${res.files[0].id}?uploadType=media&supportsAllDrives=true`, {
+    const rp = await fetch(`https://www.googleapis.com/upload/drive/v3/files/${res.files[0].id}?uploadType=media&supportsAllDrives=true`, {
       method:'PATCH', headers:{'Authorization':'Bearer '+S.accessToken,'Content-Type':'application/json'}, body:content
     });
+    if (!rp.ok) throw new Error('Update ' + name + ' ' + rp.status);
   } else {
     const bnd = 'xb_' + Date.now();
     const CRLF = String.fromCharCode(13,10);
